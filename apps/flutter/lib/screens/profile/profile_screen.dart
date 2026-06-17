@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/theme_selector.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -24,6 +25,7 @@ class ProfileScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
     final name = user?.fullName ?? 'Felipe Goulart';
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -46,7 +48,7 @@ class ProfileScreen extends StatelessWidget {
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: AppTheme.gray100, borderRadius: BorderRadius.circular(12)),
+                            decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
                             child: const Row(
                               children: [
                                 Icon(Icons.verified, size: 14, color: AppTheme.accent),
@@ -62,7 +64,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 CircleAvatar(
                   radius: 32,
-                  backgroundColor: AppTheme.gray100,
+                  backgroundColor: theme.cardColor,
                   child: Text(name.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
                 ),
               ],
@@ -70,7 +72,7 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppTheme.gray100, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
               child: const Row(
                 children: [
                   Icon(Icons.person_outline),
@@ -80,6 +82,8 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            const ThemeSelector(),
             const SizedBox(height: 16),
             GridView.count(
               crossAxisCount: 2,
@@ -91,7 +95,7 @@ class ProfileScreen extends StatelessWidget {
               children: _quickActions
                   .map((a) => Container(
                         padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: AppTheme.gray100, borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -106,7 +110,7 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppTheme.gray100, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
               child: const Row(
                 children: [
                   Expanded(

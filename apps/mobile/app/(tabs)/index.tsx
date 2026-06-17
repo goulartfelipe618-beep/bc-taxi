@@ -5,13 +5,11 @@ import { useState } from 'react';
 
 import { Text, View } from '@/components/Themed';
 import UberSearchBar from '@/components/uber/UberSearchBar';
-import Colors from '@/constants/Colors';
 import { HOME_SERVICES, RECENT_LOCATIONS } from '@/constants/mockData';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 export default function HomeScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
   const [activeTab, setActiveTab] = useState<'ride' | 'delivery'>('ride');
 
   return (
@@ -20,8 +18,8 @@ export default function HomeScreen() {
         <RNView style={styles.topTabs}>
           <Pressable style={styles.topTab} onPress={() => setActiveTab('ride')}>
             <SymbolView name={{ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }} size={18} tintColor={colors.text} />
-            <Text style={[styles.topTabText, activeTab === 'ride' && styles.topTabActive]}>BC Taxi</Text>
-            {activeTab === 'ride' && <RNView style={styles.topTabLine} />}
+            <Text style={[styles.topTabText, { color: colors.textSecondary }, activeTab === 'ride' && { color: colors.text, fontWeight: '800' }]}>BC Taxi</Text>
+            {activeTab === 'ride' && <RNView style={[styles.topTabLine, { backgroundColor: colors.text }]} />}
           </Pressable>
           <Pressable style={styles.topTab} onPress={() => setActiveTab('delivery')}>
             <SymbolView name={{ ios: 'shippingbox.fill', android: 'local_shipping', web: 'local_shipping' }} size={18} tintColor={colors.textSecondary} />
@@ -46,14 +44,14 @@ export default function HomeScreen() {
           <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={colors.textSecondary} />
         </Pressable>
 
-        <RNView style={styles.promoCard}>
+        <RNView style={[styles.promoCard, { backgroundColor: colors.promoBg }]}>
           <RNView style={styles.promoLeft}>
             <Text style={styles.promoTitle}>Conclua o seu pagamento de 0,68 R$</Text>
-            <Pressable style={styles.promoBtn}>
+            <Pressable style={[styles.promoBtn, { backgroundColor: colors.surface }]}>
               <Text style={styles.promoBtnText}>Analisar</Text>
             </Pressable>
           </RNView>
-          <RNView style={styles.promoRight}>
+          <RNView style={[styles.promoRight, { backgroundColor: colors.promoAccent }]}>
             <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} size={40} tintColor="#FFC107" />
           </RNView>
         </RNView>
@@ -99,9 +97,8 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 32, gap: 16 },
   topTabs: { flexDirection: 'row', gap: 24, marginBottom: 4 },
   topTab: { alignItems: 'center', gap: 4, paddingBottom: 8 },
-  topTabText: { fontSize: 16, fontWeight: '600', color: '#6B6B6B' },
-  topTabActive: { color: '#000', fontWeight: '800' },
-  topTabLine: { position: 'absolute', bottom: 0, height: 3, width: '100%', backgroundColor: '#000', borderRadius: 2 },
+  topTabText: { fontSize: 16, fontWeight: '600' },
+  topTabLine: { position: 'absolute', bottom: 0, height: 3, width: '100%', borderRadius: 2 },
   recentCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -118,14 +115,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFF9E6',
     minHeight: 100,
   },
   promoLeft: { flex: 1, padding: 16, justifyContent: 'center', gap: 10 },
   promoTitle: { fontSize: 15, fontWeight: '700' },
-  promoBtn: { alignSelf: 'flex-start', backgroundColor: '#FFF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  promoBtn: { alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   promoBtnText: { fontWeight: '700', fontSize: 13 },
-  promoRight: { width: 100, backgroundColor: '#FFF3C4', alignItems: 'center', justifyContent: 'center' },
+  promoRight: { width: 100, alignItems: 'center', justifyContent: 'center' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { fontSize: 18, fontWeight: '800' },
   sectionGap: { marginTop: 8 },

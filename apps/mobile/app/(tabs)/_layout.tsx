@@ -2,12 +2,10 @@ import { Platform, StyleSheet } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 export default function TabLayout() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
 
   return (
     <Tabs
@@ -25,7 +23,7 @@ export default function TabLayout() {
           marginBottom: Platform.OS === 'ios' ? 20 : 8,
           borderRadius: 24,
           position: 'absolute',
-          shadowColor: '#000',
+          shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.08,
           shadowRadius: 12,

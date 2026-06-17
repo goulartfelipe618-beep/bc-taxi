@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../config/theme.dart';
 import 'home/home_screen.dart';
 import 'rides/rides_screen.dart';
 import 'profile/profile_screen.dart';
@@ -24,22 +23,28 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(color: Colors.black12, blurRadius: 12, offset: Offset(0, -2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? 0.4 : 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, -2),
+              ),
             ],
           ),
           child: NavigationBar(
             height: 64,
             backgroundColor: Colors.transparent,
-            indicatorColor: AppTheme.gray100,
+            indicatorColor: theme.cardColor,
             selectedIndex: _index,
             onDestinationSelected: (i) => setState(() => _index = i),
             destinations: const [

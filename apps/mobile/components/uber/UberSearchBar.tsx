@@ -3,23 +3,21 @@ import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 
 import { Text } from '@/components/Themed';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 type Props = {
   onPress?: () => void;
 };
 
 export default function UberSearchBar({ onPress }: Props) {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
 
   return (
     <Pressable
-      style={[styles.bar, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[styles.bar, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.shadow }]}
       onPress={onPress ?? (() => router.push('/plan-trip'))}>
       <SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={20} tintColor={colors.text} />
-      <Text style={styles.placeholder}>Para onde?</Text>
+      <Text style={[styles.placeholder, { color: colors.textSecondary }]}>Para onde?</Text>
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
       <View style={styles.later}>
         <SymbolView name={{ ios: 'calendar', android: 'event', web: 'event' }} size={16} tintColor={colors.text} />
@@ -48,7 +46,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-    color: '#6B6B6B',
   },
   divider: {
     width: 1,

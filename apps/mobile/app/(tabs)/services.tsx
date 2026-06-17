@@ -3,8 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 const SERVICES = [
   { id: 'ride', label: 'Viajar', icon: 'directions_car' as const, route: '/plan-trip' },
@@ -16,8 +15,7 @@ const SERVICES = [
 ];
 
 export default function ServicesScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
 
   return (
     <View style={styles.container}>

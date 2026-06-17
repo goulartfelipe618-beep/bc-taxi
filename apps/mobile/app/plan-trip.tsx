@@ -4,13 +4,12 @@ import { SymbolView } from 'expo-symbols';
 import { router, Stack } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
-import Colors from '@/constants/Colors';
+import ThemeSelector from '@/components/ThemeSelector';
 import { PICKUP_ADDRESS, RECENT_LOCATIONS } from '@/constants/mockData';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 export default function PlanTripScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
   const [destination, setDestination] = useState('');
 
   return (
@@ -26,10 +25,10 @@ export default function PlanTripScreen() {
         </RNView>
 
         <RNView style={styles.pills}>
-          <Pressable style={[styles.pill, { backgroundColor: colors.text }]}>
-            <SymbolView name={{ ios: 'clock.fill', android: 'schedule', web: 'schedule' }} size={16} tintColor="#FFF" />
-            <Text style={[styles.pillText, { color: '#FFF' }]}>Recolher agora</Text>
-            <SymbolView name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={14} tintColor="#FFF" />
+          <Pressable style={[styles.pill, { backgroundColor: colors.buttonBg }]}>
+            <SymbolView name={{ ios: 'clock.fill', android: 'schedule', web: 'schedule' }} size={16} tintColor={colors.onPrimary} />
+            <Text style={[styles.pillText, { color: colors.onPrimary }]}>Recolher agora</Text>
+            <SymbolView name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={14} tintColor={colors.onPrimary} />
           </Pressable>
           <Pressable style={[styles.pill, { backgroundColor: colors.card }]}>
             <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={16} tintColor={colors.text} />

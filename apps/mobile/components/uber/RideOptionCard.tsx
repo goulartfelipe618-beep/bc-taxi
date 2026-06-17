@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { Text } from '@/components/Themed';
+import { useAppColors } from '@/components/useColorScheme';
 
 type Props = {
   name: string;
@@ -26,24 +27,29 @@ export default function RideOptionCard({
   badgeColor,
   onPress,
 }: Props) {
+  const colors = useAppColors();
+
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.card, selected && styles.cardSelected]}>
+      style={[
+        styles.card,
+        selected && { borderColor: colors.selectedBorder, backgroundColor: colors.selectedBg },
+      ]}>
       <View style={styles.carIcon}>
-        <SymbolView name={{ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }} size={28} tintColor="#000" />
+        <SymbolView name={{ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }} size={28} tintColor={colors.text} />
       </View>
       <View style={styles.info}>
         <View style={styles.nameRow}>
           <Text style={styles.name}>{name}</Text>
-          <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={12} tintColor="#6B6B6B" />
-          <Text style={styles.capacity}>{capacity}</Text>
+          <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={12} tintColor={colors.textSecondary} />
+          <Text style={[styles.capacity, { color: colors.textSecondary }]}>{capacity}</Text>
         </View>
-        <Text style={styles.eta}>
+        <Text style={[styles.eta, { color: colors.textSecondary }]}>
           {arrival} · {eta}
         </Text>
         {badge ? (
-          <View style={[styles.badge, { backgroundColor: badgeColor ?? '#276EF1' }]}>
+          <View style={[styles.badge, { backgroundColor: badgeColor ?? colors.accent }]}>
             <Text style={styles.badgeText}>{badge}</Text>
           </View>
         ) : null}
@@ -63,10 +69,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     gap: 12,
   },
-  cardSelected: {
-    borderColor: '#000',
-    backgroundColor: '#FAFAFA',
-  },
   carIcon: {
     width: 56,
     height: 40,
@@ -76,8 +78,8 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   name: { fontSize: 16, fontWeight: '700' },
-  capacity: { fontSize: 12, color: '#6B6B6B' },
-  eta: { fontSize: 13, color: '#6B6B6B' },
+  capacity: { fontSize: 12 },
+  eta: { fontSize: 13 },
   badge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8,

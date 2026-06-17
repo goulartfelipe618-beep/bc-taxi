@@ -2,9 +2,9 @@ import { ScrollView, Pressable, StyleSheet, View as RNView } from 'react-native'
 import { SymbolView } from 'expo-symbols';
 
 import { Text, View } from '@/components/Themed';
-import Colors from '@/constants/Colors';
+import ThemeSelector from '@/components/ThemeSelector';
 import { ACCOUNT_MENU } from '@/constants/mockData';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 const QUICK_ACTIONS = [
   { label: 'Ajuda', icon: 'help' as const },
@@ -14,8 +14,7 @@ const QUICK_ACTIONS = [
 ];
 
 export default function AccountScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
 
   return (
     <View style={styles.container}>
@@ -42,6 +41,8 @@ export default function AccountScreen() {
           <Text style={styles.accountText}>Pessoal</Text>
           <SymbolView name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={16} tintColor={colors.text} />
         </Pressable>
+
+        <ThemeSelector />
 
         <RNView style={styles.quickGrid}>
           {QUICK_ACTIONS.map((a) => (

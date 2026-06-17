@@ -21,6 +21,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -48,28 +51,29 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
               UberSearchBar(onTap: _openPlan),
               const SizedBox(height: 16),
-              _RecentCard(onTap: _openPlan),
+              _RecentCard(onTap: _openPlan, cardColor: theme.cardColor, borderColor: theme.dividerColor),
               const SizedBox(height: 16),
-              _PromoCard(),
+              _PromoCard(isDark: isDark, surfaceColor: theme.colorScheme.surface),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Para si', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                  CircleAvatar(radius: 14, backgroundColor: AppTheme.gray100, child: const Icon(Icons.arrow_forward, size: 14)),
+                  CircleAvatar(radius: 14, backgroundColor: theme.cardColor, child: const Icon(Icons.arrow_forward, size: 14)),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _ServiceItem(label: 'Viajar', icon: Icons.directions_car, onTap: _openPlan),
-                  _ServiceItem(label: 'Reservar', icon: Icons.event, onTap: _openPlan),
-                  _ServiceItem(label: 'Moto', icon: Icons.two_wheeler, onTap: _openPlan),
+                  _ServiceItem(label: 'Viajar', icon: Icons.directions_car, onTap: _openPlan, circleColor: theme.cardColor),
+                  _ServiceItem(label: 'Reservar', icon: Icons.event, onTap: _openPlan, circleColor: theme.cardColor),
+                  _ServiceItem(label: 'Moto', icon: Icons.two_wheeler, onTap: _openPlan, circleColor: theme.cardColor),
                   _ServiceItem(
                     label: 'Conforto',
                     icon: Icons.airline_seat_recline_normal,
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChooseRideScreen())),
+                    circleColor: theme.cardColor,
                   ),
                 ],
               ),
@@ -78,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: AppTheme.gray100, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
                 child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -127,7 +131,10 @@ class _TopTab extends StatelessWidget {
 
 class _RecentCard extends StatelessWidget {
   final VoidCallback onTap;
-  const _RecentCard({required this.onTap});
+  final Color cardColor;
+  final Color borderColor;
+
+  const _RecentCard({required this.onTap, required this.cardColor, required this.borderColor});
 
   @override
   Widget build(BuildContext context) {
@@ -137,14 +144,14 @@ class _RecentCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: Ink(
         decoration: BoxDecoration(
-          border: Border.all(color: AppTheme.gray200),
+          border: Border.all(color: borderColor),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              CircleAvatar(backgroundColor: AppTheme.gray100, child: const Icon(Icons.schedule, size: 18)),
+              CircleAvatar(backgroundColor: cardColor, child: const Icon(Icons.schedule, size: 18)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -165,10 +172,18 @@ class _RecentCard extends StatelessWidget {
 }
 
 class _PromoCard extends StatelessWidget {
+  final bool isDark;
+  final Color surfaceColor;
+
+  const _PromoCard({required this.isDark, required this.surfaceColor});
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: const Color(0xFFFFF9E6)),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: isDark ? const Color(0xFF2A2418) : const Color(0xFFFFF9E6),
+      ),
       child: Row(
         children: [
           Expanded(
@@ -181,7 +196,7 @@ class _PromoCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(20)),
                     child: const Text('Analisar', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ],
@@ -191,7 +206,7 @@ class _PromoCard extends StatelessWidget {
           Container(
             width: 90,
             height: 100,
-            color: const Color(0xFFFFF3C4),
+            color: isDark ? const Color(0xFF3D3520) : const Color(0xFFFFF3C4),
             child: const Icon(Icons.notifications, size: 40, color: Color(0xFFFFC107)),
           ),
         ],
@@ -204,8 +219,9 @@ class _ServiceItem extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+  final Color circleColor;
 
-  const _ServiceItem({required this.label, required this.icon, required this.onTap});
+  const _ServiceItem({required this.label, required this.icon, required this.onTap, required this.circleColor});
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +229,7 @@ class _ServiceItem extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          CircleAvatar(radius: 32, backgroundColor: AppTheme.gray100, child: Icon(icon)),
+          CircleAvatar(radius: 32, backgroundColor: circleColor, child: Icon(icon)),
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         ],

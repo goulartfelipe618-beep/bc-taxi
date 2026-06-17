@@ -2,13 +2,10 @@ import { ScrollView, Pressable, StyleSheet, View as RNView } from 'react-native'
 import { SymbolView } from 'expo-symbols';
 
 import { Text, View } from '@/components/Themed';
-import Colors from '@/constants/Colors';
-import { PAST_TRIPS } from '@/constants/mockData';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useAppColors } from '@/components/useColorScheme';
 
 export default function ActivityScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const colors = useAppColors();
   const featured = PAST_TRIPS[0];
 
   return (

@@ -12,7 +12,7 @@ class AppTheme {
   static const Color accent = Color(0xFF276EF1);
   static const Color primary = black;
   static const Color primaryDark = black;
-  static const Color dark = black;
+  static const Color darkColor = black;
   static const Color background = white;
   static const Color textSecondary = gray400;
   static const Color error = Color(0xFFE53935);
@@ -29,7 +29,7 @@ class AppTheme {
         border: gray200,
       );
 
-  static ThemeData get dark => _buildTheme(
+  static ThemeData get darkTheme => _buildTheme(
         brightness: Brightness.dark,
         scaffold: darkBg,
         surface: darkCard,

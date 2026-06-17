@@ -44,7 +44,7 @@ class VehicleTypeSelector extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isSelected ? AppTheme.dark : AppTheme.textSecondary,
+                        color: isSelected ? AppTheme.darkColor : AppTheme.textSecondary,
                       ),
                     ),
                     if (prices[type] != null)

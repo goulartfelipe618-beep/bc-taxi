@@ -41,7 +41,7 @@ class TripCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: isActive ? AppTheme.dark : AppTheme.textSecondary,
+                        color: isActive ? AppTheme.darkColor : AppTheme.textSecondary,
                       ),
                     ),
                   ),
@@ -67,7 +67,7 @@ class TripCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.dark,
+                    color: AppTheme.darkColor,
                   ),
                 ),
               ],

@@ -17,7 +17,7 @@ class BcTaxiApp extends StatelessWidget {
       title: 'BC Taxi',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {

@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.dark,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: AppTheme.primary,
+                    color: AppTheme.gray100,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   alignment: Alignment.center,
@@ -54,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
-                      color: AppTheme.dark,
+                      color: AppTheme.black,
                     ),
                   ),
                 ),
@@ -63,13 +63,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   'BC Taxi',
                   style: TextStyle(
                     fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.black,
                   ),
                 ),
                 const Text(
                   'Mobilidade urbana na sua cidade',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppTheme.gray400),
                 ),
                 const SizedBox(height: 40),
                 Container(
@@ -115,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Não tem conta?', style: TextStyle(color: Colors.grey)),
+                    const Text('Não tem conta?', style: TextStyle(color: AppTheme.gray400)),
                     GestureDetector(
                       onTap: () => Navigator.push(
                         context,
@@ -124,8 +124,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         ' Criar conta',
                         style: TextStyle(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.w600,
+                          color: AppTheme.black,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),

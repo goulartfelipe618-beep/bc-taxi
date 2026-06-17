@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../providers/auth_provider.dart';
-import '../../widgets/vehicle_type_selector.dart';
-import '../trip/trip_screen.dart';
+import '../../data/mock_data.dart';
+import '../../widgets/uber_search_bar.dart';
+import '../plan/choose_ride_screen.dart';
+import '../plan/plan_trip_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,194 +13,209 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  GoogleMapController? _mapController;
-  LatLng? _pickup;
-  LatLng? _dropoff;
-  String _vehicleType = 'economy';
-  Map<String, double> _prices = {};
-  bool _selectingDropoff = false;
-  bool _loading = true;
-  bool _requesting = false;
-  final _dropoffController = TextEditingController();
+  int _topTab = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _initLocation();
-  }
-
-  Future<void> _initLocation() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
-    }
-    final pos = await Geolocator.getCurrentPosition();
-    setState(() {
-      _pickup = LatLng(pos.latitude, pos.longitude);
-      _loading = false;
-    });
-    _mapController?.animateCamera(CameraUpdate.newLatLng(_pickup!));
-  }
-
-  Future<void> _updateEstimates() async {
-    if (_pickup == null || _dropoff == null) return;
-    final auth = context.read<AuthProvider>();
-    final tripService = TripService(auth.apiClient);
-    try {
-      final estimates = await tripService.estimateFare(
-        pickupLat: _pickup!.latitude,
-        pickupLng: _pickup!.longitude,
-        dropoffLat: _dropoff!.latitude,
-        dropoffLng: _dropoff!.longitude,
-      );
-      setState(() => _prices = estimates);
-    } catch (_) {}
-  }
-
-  Future<void> _requestRide() async {
-    if (_pickup == null || _dropoff == null) return;
-    setState(() => _requesting = true);
-    final auth = context.read<AuthProvider>();
-    final tripService = TripService(auth.apiClient);
-    try {
-      final trip = await tripService.createTrip(
-        pickupLat: _pickup!.latitude,
-        pickupLng: _pickup!.longitude,
-        dropoffLat: _dropoff!.latitude,
-        dropoffLng: _dropoff!.longitude,
-        vehicleType: _vehicleType,
-        pickupAddress: 'Minha localização',
-        dropoffAddress: _dropoffController.text.isNotEmpty
-            ? _dropoffController.text
-            : 'Destino selecionado',
-      );
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => TripScreen(tripId: trip.id)),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
-        );
-      }
-    } finally {
-      setState(() => _requesting = false);
-    }
+  void _openPlan() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const PlanTripScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading || _pickup == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(title: const Text('BC Taxi')),
-      body: Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(target: _pickup!, zoom: 14),
-            onMapCreated: (c) => _mapController = c,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            markers: {
-              if (_pickup != null)
-                Marker(
-                  markerId: const MarkerId('pickup'),
-                  position: _pickup!,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueYellow,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  _TopTab(
+                    label: 'BC Taxi',
+                    icon: Icons.directions_car,
+                    active: _topTab == 0,
+                    onTap: () => setState(() => _topTab = 0),
                   ),
-                ),
-              if (_dropoff != null)
-                Marker(
-                  markerId: const MarkerId('dropoff'),
-                  position: _dropoff!,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueRed,
-                  ),
-                ),
-            },
-            onTap: (latLng) {
-              if (!_selectingDropoff) return;
-              setState(() {
-                _dropoff = latLng;
-                _selectingDropoff = false;
-              });
-              _updateEstimates();
-            },
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 12,
-                    offset: Offset(0, -4),
+                  const SizedBox(width: 24),
+                  _TopTab(
+                    label: 'Entregas',
+                    icon: Icons.local_shipping_outlined,
+                    active: _topTab == 1,
+                    onTap: () => setState(() => _topTab = 1),
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
+              const SizedBox(height: 16),
+              UberSearchBar(onTap: _openPlan),
+              const SizedBox(height: 16),
+              _RecentCard(onTap: _openPlan),
+              const SizedBox(height: 16),
+              _PromoCard(),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Onde você quer ir?',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  const Text('Para si', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  CircleAvatar(radius: 14, backgroundColor: AppTheme.gray100, child: const Icon(Icons.arrow_forward, size: 14)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _ServiceItem(label: 'Viajar', icon: Icons.directions_car, onTap: _openPlan),
+                  _ServiceItem(label: 'Reservar', icon: Icons.event, onTap: _openPlan),
+                  _ServiceItem(label: 'Moto', icon: Icons.two_wheeler, onTap: _openPlan),
+                  _ServiceItem(
+                    label: 'Conforto',
+                    icon: Icons.airline_seat_recline_normal,
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChooseRideScreen())),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _dropoffController,
-                    decoration: const InputDecoration(
-                      hintText: 'Digite o destino (opcional)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: () => setState(() => _selectingDropoff = true),
-                    child: Text(
-                      _selectingDropoff
-                          ? 'Toque no mapa para marcar'
-                          : 'Selecionar destino no mapa',
-                    ),
-                  ),
-                  if (_dropoff != null) ...[
-                    const SizedBox(height: 16),
-                    VehicleTypeSelector(
-                      selected: _vehicleType,
-                      prices: _prices,
-                      onSelect: (t) => setState(() => _vehicleType = t),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _requesting ? null : _requestRide,
-                      child: _requesting
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              'Solicitar corrida — R\$ ${_prices[_vehicleType]?.toStringAsFixed(2) ?? '—'}',
-                            ),
-                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text('Poupe uma viagem', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: AppTheme.gray100, borderRadius: BorderRadius.circular(12)),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Espere e poupe até 15%', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    SizedBox(height: 4),
+                    Text('Viagens flexíveis com preço menor', style: TextStyle(color: AppTheme.gray400, fontSize: 13)),
                   ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _TopTab({required this.label, required this.icon, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: active ? AppTheme.black : AppTheme.gray400),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(fontWeight: active ? FontWeight.w800 : FontWeight.w600, color: active ? AppTheme.black : AppTheme.gray400)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (active) Container(height: 3, width: 80, decoration: BoxDecoration(color: AppTheme.black, borderRadius: BorderRadius.circular(2))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _RecentCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = recentLocations.first;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Ink(
+        decoration: BoxDecoration(
+          border: Border.all(color: AppTheme.gray200),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(backgroundColor: AppTheme.gray100, child: const Icon(Icons.schedule, size: 18)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(loc.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(loc.address, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppTheme.gray400, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppTheme.gray400),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PromoCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: const Color(0xFFFFF9E6)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Conclua o seu pagamento de 0,68 R\$', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                    child: const Text('Analisar', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
                 ],
               ),
             ),
           ),
+          Container(
+            width: 90,
+            height: 100,
+            color: const Color(0xFFFFF3C4),
+            child: const Icon(Icons.notifications, size: 40, color: Color(0xFFFFC107)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServiceItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ServiceItem({required this.label, required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          CircleAvatar(radius: 32, backgroundColor: AppTheme.gray100, child: Icon(icon)),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );

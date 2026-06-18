@@ -15,15 +15,6 @@ Thumbs.db
 *.iml
 .vscode/
 
-# Flutter / Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-build/
-**/android/local.properties
-
 # Expo
 .expo/
 dist/

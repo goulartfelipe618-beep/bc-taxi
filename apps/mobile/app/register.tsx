@@ -30,7 +30,7 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      <Pressable onPress={() => router.back()} style={styles.back}>
+      <Pressable onPress={() => router.replace('/login')} style={styles.back}>
         <Text style={{ fontWeight: '600' }}>← Voltar</Text>
       </Pressable>
 

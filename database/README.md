@@ -33,6 +33,8 @@ cd apps/mobile
 npm start -- --web
 ```
 
+Abra **http://localhost:8081/login**
+
 ## Tabelas
 
 - **users** — conta (email, senha hash, nome, papel)

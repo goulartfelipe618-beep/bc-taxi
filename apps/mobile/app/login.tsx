@@ -61,7 +61,7 @@ export default function LoginScreen() {
 
       <RNView style={styles.footer}>
         <Text style={{ color: colors.textSecondary }}>Não tem conta?</Text>
-        <Link href="/(auth)/register" style={styles.link}>
+        <Link href="/register" style={styles.link}>
           Criar conta
         </Link>
       </RNView>

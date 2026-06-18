@@ -5,6 +5,8 @@ import { useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppColors } from '@/components/useColorScheme';
 
+const AUTH_ROUTES = new Set(['login', 'register']);
+
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const segments = useSegments();
@@ -14,11 +16,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const current = segments[0] ?? '';
+    const onAuthRoute = AUTH_ROUTES.has(current);
 
-    if (!user && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
+    if (!user && !onAuthRoute) {
+      router.replace('/login');
+    } else if (user && onAuthRoute) {
       router.replace('/(tabs)');
     }
   }, [user, loading, segments, router]);

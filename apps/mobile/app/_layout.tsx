@@ -59,7 +59,9 @@ function RootLayoutNav() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <AuthGate>
         <Stack>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="register" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="plan-trip" options={{ headerShown: false, presentation: 'card' }} />
           <Stack.Screen name="choose-ride" options={{ headerShown: false, presentation: 'card' }} />

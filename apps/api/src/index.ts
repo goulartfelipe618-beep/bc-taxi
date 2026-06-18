@@ -6,14 +6,18 @@ import { authRouter } from './routes/auth.js';
 
 async function main() {
   await migrate();
-  console.log('Database schema ready');
+  if (config.useMemoryDb) {
+    console.log('Running in memory mode (no DATABASE_URL)');
+  } else {
+    console.log('Database schema ready');
+  }
 
   const app = express();
   app.use(cors());
   app.use(express.json());
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true });
+    res.json({ ok: true, mode: config.useMemoryDb ? 'memory' : 'postgres' });
   });
 
   app.use('/auth', authRouter);
@@ -33,6 +37,6 @@ main().catch((err) => {
 });
 
 process.on('SIGINT', async () => {
-  await pool.end();
+  if (!config.useMemoryDb && pool) await pool.end();
   process.exit(0);
 });

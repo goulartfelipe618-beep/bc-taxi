@@ -4,7 +4,8 @@ node_modules/
 # Environment
 .env
 apps/api/.env
-apps/mobile/.env
+apps/passenger/.env
+apps/driver/.env
 
 # OS
 .DS_Store
@@ -17,6 +18,7 @@ Thumbs.db
 
 # Expo
 .expo/
+.expo-web-test/
 dist/
 web-build/
 expo-env.d.ts

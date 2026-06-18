@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { pool, toPublicUser } from '../db.js';
 import { authMiddleware, authResponse } from '../middleware/auth.js';
+import * as userStore from '../userStore.js';
 
 const registerSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -30,6 +32,17 @@ authRouter.post('/register', async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
+    if (config.useMemoryDb) {
+      const existing = await userStore.findUserByEmail(normalizedEmail);
+      if (existing) {
+        res.status(409).json({ error: 'E-mail já cadastrado' });
+        return;
+      }
+      const user = await userStore.createUser({ email: normalizedEmail, password, fullName, role, phone });
+      res.status(201).json(authResponse(user));
+      return;
+    }
+
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rowCount && existing.rowCount > 0) {
       res.status(409).json({ error: 'E-mail já cadastrado' });
@@ -45,7 +58,6 @@ authRouter.post('/register', async (req, res) => {
     );
 
     const user = result.rows[0];
-
     if (role === 'driver') {
       await pool.query('INSERT INTO drivers (user_id) VALUES ($1)', [user.id]);
     }
@@ -68,13 +80,23 @@ authRouter.post('/login', async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
-    if (result.rowCount === 0) {
-      res.status(401).json({ error: 'E-mail ou senha inválidos' });
-      return;
+    let user;
+
+    if (config.useMemoryDb) {
+      user = await userStore.findUserByEmail(normalizedEmail);
+      if (!user) {
+        res.status(401).json({ error: 'E-mail ou senha inválidos' });
+        return;
+      }
+    } else {
+      const result = await pool.query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+      if (result.rowCount === 0) {
+        res.status(401).json({ error: 'E-mail ou senha inválidos' });
+        return;
+      }
+      user = result.rows[0];
     }
 
-    const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       res.status(401).json({ error: 'E-mail ou senha inválidos' });

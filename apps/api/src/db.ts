@@ -6,14 +6,17 @@ import { config } from './config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
-  ssl: config.databaseUrl.includes('supabase.co')
-    ? { rejectUnauthorized: false }
-    : undefined,
-});
+export const pool = config.useMemoryDb
+  ? (null as unknown as pg.Pool)
+  : new pg.Pool({
+      connectionString: config.databaseUrl,
+      ssl: config.databaseUrl.includes('supabase.co')
+        ? { rejectUnauthorized: false }
+        : undefined,
+    });
 
 export async function migrate() {
+  if (config.useMemoryDb) return;
   const schemaPath = join(__dirname, '../../../database/schema.sql');
   const sql = readFileSync(schemaPath, 'utf8');
   await pool.query(sql);

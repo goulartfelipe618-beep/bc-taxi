@@ -5,6 +5,7 @@ import { Text, View } from '@/components/Themed';
 import ThemeSelector from '@/components/ThemeSelector';
 import { ACCOUNT_MENU } from '@/constants/mockData';
 import { useAppColors } from '@/components/useColorScheme';
+import { useAuth } from '@/contexts/AuthContext';
 
 const QUICK_ACTIONS = [
   { label: 'Ajuda', icon: 'help' as const },
@@ -15,24 +16,25 @@ const QUICK_ACTIONS = [
 
 export default function AccountScreen() {
   const colors = useAppColors();
+  const { user, logout } = useAuth();
+  const displayName = user?.full_name ?? 'Usuário';
+  const roleLabel = user?.role === 'driver' ? 'Motorista' : 'Passageiro';
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <RNView style={styles.header}>
           <RNView>
-            <Text style={styles.name}>Felipe Goulart</Text>
+            <Text style={styles.name}>{displayName}</Text>
+            <Text style={[styles.email, { color: colors.textSecondary }]}>{user?.email}</Text>
             <RNView style={styles.ratingRow}>
-              <SymbolView name={{ ios: 'star.fill', android: 'star', web: 'star' }} size={14} tintColor={colors.text} />
-              <Text style={styles.rating}>4.93</Text>
-              <RNView style={[styles.verified, { backgroundColor: colors.card }]}>
-                <SymbolView name={{ ios: 'checkmark.seal.fill', android: 'verified', web: 'verified' }} size={14} tintColor={colors.accent} />
-                <Text style={[styles.verifiedText, { color: colors.accent }]}>Verificado</Text>
+              <RNView style={[styles.roleBadge, { backgroundColor: colors.card }]}>
+                <Text style={styles.roleText}>{roleLabel}</Text>
               </RNView>
             </RNView>
           </RNView>
           <RNView style={[styles.avatar, { backgroundColor: colors.card }]}>
-            <SymbolView name={{ ios: 'person.fill', android: 'person', web: 'person' }} size={32} tintColor={colors.textSecondary} />
+            <Text style={styles.avatarLetter}>{displayName.charAt(0).toUpperCase()}</Text>
           </RNView>
         </RNView>
 
@@ -73,6 +75,12 @@ export default function AccountScreen() {
             <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={colors.textSecondary} />
           </Pressable>
         ))}
+
+        <Pressable
+          style={[styles.logoutBtn, { borderColor: colors.border }]}
+          onPress={logout}>
+          <Text style={styles.logoutText}>Sair da conta</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -83,11 +91,12 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 32 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   name: { fontSize: 28, fontWeight: '800' },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  rating: { fontSize: 14, fontWeight: '600' },
-  verified: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  verifiedText: { fontSize: 12, fontWeight: '600' },
+  email: { fontSize: 14, marginTop: 4 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  roleText: { fontSize: 12, fontWeight: '700' },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { fontSize: 28, fontWeight: '800' },
   accountSelector: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, marginBottom: 16 },
   accountText: { flex: 1, fontSize: 16, fontWeight: '700' },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
@@ -101,4 +110,6 @@ const styles = StyleSheet.create({
   menuText: { flex: 1, gap: 2 },
   menuTitle: { fontSize: 16, fontWeight: '700' },
   menuSub: { fontSize: 13 },
+  logoutBtn: { marginTop: 24, paddingVertical: 16, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  logoutText: { fontWeight: '700', fontSize: 16 },
 });

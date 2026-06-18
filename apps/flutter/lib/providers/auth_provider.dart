@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../models/driver.dart';
 import '../models/trip.dart';
@@ -53,7 +54,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'E-mail ou senha inválidos';
+      _error = _parseError(e, 'E-mail ou senha inválidos');
       notifyListeners();
       return false;
     }
@@ -80,7 +81,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Erro ao criar conta';
+      _error = _parseError(e, 'Erro ao criar conta');
       notifyListeners();
       return false;
     }
@@ -91,6 +92,14 @@ class AuthProvider extends ChangeNotifier {
     await _api.setToken(null);
     _user = null;
     notifyListeners();
+  }
+
+  String _parseError(Object e, String fallback) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['error'] is String) return data['error'] as String;
+    }
+    return fallback;
   }
 }
 

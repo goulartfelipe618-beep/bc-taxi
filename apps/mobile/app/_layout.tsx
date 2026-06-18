@@ -6,6 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { ThemeProvider, useColorScheme } from '@/contexts/ThemeContext';
+import { AuthProvider } from '@/contexts/AuthContext';
+import AuthGate from '@/components/AuthGate';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -42,7 +44,9 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <RootLayoutNav />
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
@@ -53,11 +57,14 @@ function RootLayoutNav() {
   return (
     <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="plan-trip" options={{ headerShown: false, presentation: 'card' }} />
-        <Stack.Screen name="choose-ride" options={{ headerShown: false, presentation: 'card' }} />
-      </Stack>
+      <AuthGate>
+        <Stack>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="plan-trip" options={{ headerShown: false, presentation: 'card' }} />
+          <Stack.Screen name="choose-ride" options={{ headerShown: false, presentation: 'card' }} />
+        </Stack>
+      </AuthGate>
     </NavigationThemeProvider>
   );
 }

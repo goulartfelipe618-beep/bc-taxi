@@ -13,6 +13,8 @@ import {
   validateStartCode,
 } from './codeStore.js';
 import type { CodeRole, VerifyCodeResult, VerificationPublic } from './types.js';
+import { emitEvent } from '../realtime/eventBus.js';
+import { recordFraudSignal } from '../fraud/fraudService.js';
 
 async function updateLifecycle(
   rideId: string,
@@ -68,6 +70,11 @@ export async function driverMarkArrived(
   if (useMemory()) {
     result.codes = { passenger: issued.passengerCode, driver: issued.driverCode };
   }
+  void emitEvent('RIDE_DRIVER_ARRIVED', 'ride', rideId, { driverId }, {
+    rideId,
+    driverId,
+    userIds: [ride.passengerId],
+  });
   return result;
 }
 
@@ -92,6 +99,13 @@ export async function verifyStartCode(
 
   const result = await validateStartCode(rideId, role, code);
   if (!result.ok) {
+    const signalType = result.cooldownUntil ? 'CODE_COOLDOWN' : 'CODE_VERIFY_FAIL';
+    void recordFraudSignal({
+      userId: actorUserId,
+      rideId,
+      signalType,
+      metadata: { role, reason: result.reason },
+    });
     return {
       ok: false,
       reason: result.reason,
@@ -103,6 +117,11 @@ export async function verifyStartCode(
   if (!started && (await bothCodesVerified(rideId))) {
     await updateLifecycle(rideId, { status: 'IN_PROGRESS', startedAt: new Date() });
     started = true;
+    void emitEvent('RIDE_STARTED', 'ride', rideId, {}, {
+      rideId,
+      userIds: [ride.passengerId],
+      driverId: ride.driverId,
+    });
   }
 
   return { ok: true, role, started };
@@ -151,6 +170,11 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
   if (!completed) throw new Error('Falha ao concluir corrida');
 
   await releaseDriver(completed);
+  void emitEvent('RIDE_COMPLETED', 'ride', rideId, { fareCentavos: amount }, {
+    rideId,
+    userIds: [completed.passengerId],
+    driverId: completed.driverId,
+  });
   return completed;
 }
 

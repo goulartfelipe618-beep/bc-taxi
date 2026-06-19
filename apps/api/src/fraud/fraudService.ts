@@ -1,0 +1,144 @@
+import { randomUUID } from 'node:crypto';
+import { pool } from '../db.js';
+import { useMemory } from '../stores/memoryMatchStore.js';
+import { emitEvent } from '../realtime/eventBus.js';
+
+export type FraudSignalType =
+  | 'CODE_VERIFY_FAIL'
+  | 'CODE_COOLDOWN'
+  | 'GPS_JUMP'
+  | 'GPS_STALE'
+  | 'RAPID_CANCEL'
+  | 'PAYMENT_FAIL'
+  | 'DEVICE_ANOMALY';
+
+const memorySignals: Array<{ userId: string; score: number }> = [];
+const RISK_THRESHOLD = 0.75;
+
+const severityByType: Record<FraudSignalType, { severity: string; delta: number }> = {
+  CODE_VERIFY_FAIL: { severity: 'medium', delta: 0.08 },
+  CODE_COOLDOWN: { severity: 'high', delta: 0.15 },
+  GPS_JUMP: { severity: 'high', delta: 0.12 },
+  GPS_STALE: { severity: 'low', delta: 0.04 },
+  RAPID_CANCEL: { severity: 'medium', delta: 0.06 },
+  PAYMENT_FAIL: { severity: 'medium', delta: 0.05 },
+  DEVICE_ANOMALY: { severity: 'high', delta: 0.1 },
+};
+
+export async function recordFraudSignal(input: {
+  userId?: string;
+  rideId?: string;
+  signalType: FraudSignalType;
+  metadata?: Record<string, unknown>;
+}) {
+  const cfg = severityByType[input.signalType];
+  if (!input.userId) return { recorded: false };
+
+  if (useMemory()) {
+    const existing = memorySignals.find((s) => s.userId === input.userId);
+    if (existing) existing.score += cfg.delta;
+    else memorySignals.push({ userId: input.userId, score: cfg.delta });
+  } else {
+    await pool.query(
+      `INSERT INTO fraud_signals (user_id, ride_id, signal_type, severity, score_delta, metadata_json)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [input.userId, input.rideId ?? null, input.signalType, cfg.severity, cfg.delta, JSON.stringify(input.metadata ?? {})],
+    );
+  }
+
+  await emitEvent(
+    'FRAUD_SIGNAL',
+    'user',
+    input.userId,
+    { signalType: input.signalType, severity: cfg.severity, rideId: input.rideId },
+    { userIds: [input.userId], rideId: input.rideId },
+  );
+
+  const riskScore = await getUserRiskScore(input.userId);
+  if (riskScore >= RISK_THRESHOLD && !useMemory()) {
+    await pool.query(
+      `INSERT INTO fraud_cases (id, user_id, status, risk_score, summary, metadata_json)
+       VALUES ($1,$2,'open',$3,$4,$5)`,
+      [
+        randomUUID(),
+        input.userId,
+        riskScore,
+        `Risco elevado: ${input.signalType}`,
+        JSON.stringify({ lastSignal: input.signalType }),
+      ],
+    );
+  }
+
+  return { recorded: true, riskScore };
+}
+
+export async function getUserRiskScore(userId: string): Promise<number> {
+  if (useMemory()) {
+    return memorySignals.find((s) => s.userId === userId)?.score ?? 0;
+  }
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(score_delta), 0) AS total FROM fraud_signals
+     WHERE user_id = $1 AND created_at > NOW() - INTERVAL '7 days'`,
+    [userId],
+  );
+  return Math.min(1, Number(rows[0]?.total ?? 0));
+}
+
+export async function checkGpsIntegrity(input: {
+  driverId: string;
+  rideId?: string;
+  lat: number;
+  lng: number;
+  prevLat?: number;
+  prevLng?: number;
+  prevAt?: Date;
+}) {
+  if (input.prevLat == null || input.prevLng == null || !input.prevAt) return;
+
+  const dtSec = (Date.now() - input.prevAt.getTime()) / 1000;
+  if (dtSec > 120) {
+    await recordFraudSignal({
+      userId: input.driverId,
+      rideId: input.rideId,
+      signalType: 'GPS_STALE',
+      metadata: { dtSec },
+    });
+    await emitEvent('GPS_INTEGRITY_ALERT', 'driver', input.driverId, { type: 'STALE', rideId: input.rideId }, {
+      driverId: input.driverId,
+      rideId: input.rideId,
+    });
+    return;
+  }
+
+  const dLat = input.lat - input.prevLat;
+  const dLng = input.lng - input.prevLng;
+  const distKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
+  const speedKmh = dtSec > 0 ? (distKm / dtSec) * 3600 : 0;
+
+  if (speedKmh > 180) {
+    if (!useMemory()) {
+      await pool.query(
+        `INSERT INTO gps_integrity_events (driver_id, ride_id, event_type, lat, lng, metadata_json)
+         VALUES ($1,$2,'IMPOSSIBLE_SPEED',$3,$4,$5)`,
+        [input.driverId, input.rideId ?? null, input.lat, input.lng, JSON.stringify({ speedKmh })],
+      );
+    }
+    await recordFraudSignal({
+      userId: input.driverId,
+      rideId: input.rideId,
+      signalType: 'GPS_JUMP',
+      metadata: { speedKmh },
+    });
+    await emitEvent('GPS_INTEGRITY_ALERT', 'driver', input.driverId, { type: 'IMPOSSIBLE_SPEED', speedKmh }, {
+      driverId: input.driverId,
+      rideId: input.rideId,
+    });
+  }
+}
+
+export async function assertUserNotBlocked(userId: string) {
+  const score = await getUserRiskScore(userId);
+  if (score >= 0.95) {
+    throw new Error('Conta temporariamente restrita por análise de risco');
+  }
+}

@@ -9,6 +9,7 @@ import '../models/trip_draft.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/driver_service.dart';
+import '../services/realtime_service.dart';
 import '../widgets/passenger/ride_review_sheet.dart';
 import 'login_screen.dart';
 
@@ -30,6 +31,27 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   String? _error;
   bool _busy = false;
   final _codeController = TextEditingController();
+  RealtimeService? _realtime;
+
+  void _onRealtimeEvent(Map<String, dynamic> event) {
+    final type = eventType(event);
+    if (type == 'RIDE_OFFERED' || type == 'RIDE_CANCELLED') _poll();
+    if (type == 'RIDE_DRIVER_ASSIGNED' || type == 'RIDE_COMPLETED' || type == 'RIDE_DRIVER_ARRIVED') _poll();
+  }
+
+  void _ensureRealtime() {
+    final token = context.read<AuthService>().token;
+    if (token == null) return;
+    _realtime ??= RealtimeService(token: token)
+      ..addListener(_onRealtimeEvent)
+      ..connect();
+  }
+
+  void _stopRealtime() {
+    _realtime?.removeListener(_onRealtimeEvent);
+    _realtime?.disconnect();
+    _realtime = null;
+  }
 
   DriverService? get _driverService {
     final token = context.read<AuthService>().token;
@@ -40,6 +62,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _stopRealtime();
     _codeController.dispose();
     super.dispose();
   }
@@ -65,9 +88,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!mounted) return;
       setState(() => _online = online);
       if (online) {
+        _ensureRealtime();
         _startPolling();
       } else {
         _pollTimer?.cancel();
+        _stopRealtime();
         setState(() {
           _offers = [];
           _activeRide = null;

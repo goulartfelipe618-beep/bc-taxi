@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import type { RideCategoryCode } from '../domain/types.js';
+import { getDynamicMultiplier, refreshDynamicPricing } from '../pricing/dynamicPricingService.js';
+
+export const pricingRouter = Router();
+
+pricingRouter.get('/dynamic', async (req, res) => {
+  const categoryCode = (req.query.category as string) ?? 'economico';
+  try {
+    const multiplier = await getDynamicMultiplier(categoryCode as RideCategoryCode);
+    res.json({ categoryCode, multiplierEffective: multiplier });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao obter pricing dinâmico';
+    res.status(400).json({ error: message });
+  }
+});
+
+const refreshSchema = z.object({
+  categoryCode: z.string().default('economico'),
+});
+
+pricingRouter.post('/dynamic/refresh', async (req, res) => {
+  const parsed = refreshSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const snapshot = await refreshDynamicPricing(parsed.data.categoryCode as RideCategoryCode);
+    res.json(snapshot);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao atualizar pricing';
+    res.status(400).json({ error: message });
+  }
+});

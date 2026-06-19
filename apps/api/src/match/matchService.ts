@@ -22,7 +22,7 @@ import {
   updateOfferStatusPg,
   updateRideStatusPg,
 } from '../stores/rideRepository.js';
-import { matchCache } from './cacheStore.js';
+import { distributedCache } from '../realtime/distributedCache.js';
 import {
   filterEligibleDrivers,
   getOfferTimeoutSeconds,
@@ -31,6 +31,7 @@ import {
   usesSequentialOffer,
 } from './eligibility.js';
 import type { PassengerContext, RideRecord, RideRequestInput, ScoredCandidate } from './types.js';
+import { emitEvent } from '../realtime/eventBus.js';
 
 const activeMatchLoops = new Set<string>();
 
@@ -166,6 +167,13 @@ async function dispatchOffers(
           offerType: 'sequential',
           expiresAt,
         });
+    void emitEvent(
+      'RIDE_OFFERED',
+      'ride',
+      ride.id,
+      { offerId: offer.id, rideId: ride.id, categoryCode: ride.categoryCode },
+      { driverId: top.driver.userId, rideId: ride.id, userIds: [ride.passengerId] },
+    );
     return [offer];
   }
 
@@ -195,6 +203,16 @@ async function dispatchOffers(
           expiresAt,
         });
     created.push(offer);
+  }
+
+  for (const offer of created) {
+    void emitEvent(
+      'RIDE_OFFERED',
+      'ride',
+      ride.id,
+      { offerId: offer.id, rideId: ride.id, categoryCode: ride.categoryCode },
+      { driverId: offer.driverId, rideId: ride.id, userIds: [ride.passengerId] },
+    );
   }
   return created;
 }
@@ -268,6 +286,13 @@ export async function startMatching(rideId: string, passengerReputation = 4.7) {
   if (activeMatchLoops.has(rideId)) return getRide(rideId);
   activeMatchLoops.add(rideId);
   try {
+    const ride = await getRide(rideId);
+    if (ride) {
+      void emitEvent('RIDE_REQUESTED', 'ride', rideId, { categoryCode: ride.categoryCode }, {
+        rideId,
+        userIds: [ride.passengerId],
+      });
+    }
     return await runMatchStage(rideId, 0, passengerReputation);
   } finally {
     activeMatchLoops.delete(rideId);
@@ -286,13 +311,13 @@ export async function acceptOffer(offerId: string, driverId: string): Promise<Ri
   }
 
   const claimToken = randomUUID();
-  const claimed = await matchCache.setNx(offerClaimKey(offerId), claimToken, 30);
+  const claimed = await distributedCache.setNx(offerClaimKey(offerId), claimToken, 30);
   if (!claimed) return null;
 
   const ride = await getRide(offer.rideId);
   if (!ride || !['REQUESTED', 'OFFERING'].includes(ride.status)) return null;
 
-  const rideClaim = await matchCache.setNx(claimKey(ride.id), driverId, 60);
+  const rideClaim = await distributedCache.setNx(claimKey(ride.id), driverId, 60);
   if (!rideClaim) return null;
 
   if (useMemory()) {
@@ -305,9 +330,39 @@ export async function acceptOffer(offerId: string, driverId: string): Promise<Ri
   }
 
   if (useMemory()) {
-    return memoryMatchStore.assignDriverToRide(ride.id, driverId);
+    const assigned = await memoryMatchStore.assignDriverToRide(ride.id, driverId);
+    if (assigned) {
+      void emitEvent(
+        'RIDE_ACCEPTED',
+        'ride',
+        ride.id,
+        { offerId, driverId, status: assigned.status },
+        { userIds: [ride.passengerId], driverId, rideId: ride.id },
+      );
+      void emitEvent('RIDE_DRIVER_ASSIGNED', 'ride', ride.id, { driverId }, {
+        userIds: [ride.passengerId],
+        driverId,
+        rideId: ride.id,
+      });
+    }
+    return assigned;
   }
-  return assignDriverToRidePg(ride.id, driverId, ride.rideVersion);
+  const assignedPg = await assignDriverToRidePg(ride.id, driverId, ride.rideVersion);
+  if (assignedPg) {
+    void emitEvent(
+      'RIDE_ACCEPTED',
+      'ride',
+      ride.id,
+      { offerId, driverId, status: assignedPg.status },
+      { userIds: [ride.passengerId], driverId, rideId: ride.id },
+    );
+    void emitEvent('RIDE_DRIVER_ASSIGNED', 'ride', ride.id, { driverId }, {
+      userIds: [ride.passengerId],
+      driverId,
+      rideId: ride.id,
+    });
+  }
+  return assignedPg;
 }
 
 export async function rejectOffer(offerId: string, driverId: string) {
@@ -329,14 +384,26 @@ export async function getDriverPendingOffers(driverId: string) {
 export async function cancelRide(rideId: string, passengerId: string, reason?: string) {
   const ride = await getRide(rideId);
   if (!ride || ride.passengerId !== passengerId) return null;
-  const cancellable = ['REQUESTED', 'OFFERING', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED'];
-  if (!cancellable.includes(ride.status)) return null;
-
   if (useMemory()) {
     await memoryMatchStore.expirePendingOffersForRide(rideId);
-    if (ride.driverId) await memoryMatchStore.releaseDriver(ride.driverId);
-    return memoryMatchStore.updateRideStatus(rideId, 'CANCELLED', { cancelReason: reason });
+    const cancelled = await memoryMatchStore.updateRideStatus(rideId, 'CANCELLED', { cancelReason: reason });
+    if (cancelled) {
+      void emitEvent('RIDE_CANCELLED', 'ride', rideId, { reason }, {
+        rideId,
+        userIds: [passengerId],
+        driverId: cancelled.driverId,
+      });
+    }
+    return cancelled;
   }
   await cancelRidePg(rideId, passengerId, reason);
-  return getRide(rideId);
+  const updated = await getRide(rideId);
+  if (updated) {
+    void emitEvent('RIDE_CANCELLED', 'ride', rideId, { reason }, {
+      rideId,
+      userIds: [passengerId],
+      driverId: updated.driverId,
+    });
+  }
+  return updated;
 }

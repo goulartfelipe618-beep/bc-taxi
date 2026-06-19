@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { MATCH_CONFIG, BLOCK_DURATIONS } from '../domain/match.js';
 import { computeQuote, DEFAULT_PRICING_REGION, formatFare } from '../domain/pricing.js';
+import { getDynamicMultiplier } from '../pricing/dynamicPricingService.js';
 import {
   DRIVER_TIER_BENEFITS,
   PASSENGER_TIER_BENEFITS,
@@ -39,7 +40,7 @@ const quoteSchema = z.object({
   addonsCentavos: z.number().min(0).optional(),
 });
 
-quotesRouter.post('/', (req, res) => {
+quotesRouter.post('/', async (req, res) => {
   const parsed = quoteSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -50,11 +51,15 @@ quotesRouter.post('/', (req, res) => {
     res.status(400).json({ error: 'Categoria inválida' });
     return;
   }
+
+  const dynamicMultiplier =
+    parsed.data.dynamicMultiplier ?? (await getDynamicMultiplier(parsed.data.categoryCode as RideCategoryCode));
+
   const quote = computeQuote({
     categoryCode: parsed.data.categoryCode as RideCategoryCode,
     distanceKm: parsed.data.distanceKm,
     durationMin: parsed.data.durationMin,
-    dynamicMultiplier: parsed.data.dynamicMultiplier,
+    dynamicMultiplier,
     tollsCentavos: parsed.data.tollsCentavos,
     airportFeeCentavos: parsed.data.airportFeeCentavos,
     addonsCentavos: parsed.data.addonsCentavos,

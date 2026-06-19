@@ -15,6 +15,7 @@ import {
 } from '../match/matchService.js';
 import type { RideRecord, RideStatus } from '../match/types.js';
 import { DEMO_PAYMENT_METHOD_IDS } from '../payments/paymentStore.js';
+import { assertUserNotBlocked, checkGpsIntegrity } from '../fraud/fraudService.js';
 import {
   attachIntentToRide,
   authorizeRidePayment,
@@ -124,6 +125,14 @@ ridesRouter.post('/', async (req, res) => {
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Falha ao autorizar pagamento';
     res.status(402).json({ error: message });
+    return;
+  }
+
+  try {
+    await assertUserNotBlocked(req.user!.id);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Conta restrita';
+    res.status(403).json({ error: message });
     return;
   }
 
@@ -332,6 +341,17 @@ driverRouter.post('/status', async (req, res) => {
   }
 
   if (useMemory()) {
+    const prev = await memoryMatchStore.getDriver(req.user!.id);
+    if (parsed.data.lat != null && parsed.data.lng != null) {
+      void checkGpsIntegrity({
+        driverId: req.user!.id,
+        lat: parsed.data.lat,
+        lng: parsed.data.lng,
+        prevLat: prev?.lat,
+        prevLng: prev?.lng,
+        prevAt: prev?.locationUpdatedAt,
+      });
+    }
     const driver = await memoryMatchStore.setDriverOnline(
       req.user!.id,
       parsed.data.online,

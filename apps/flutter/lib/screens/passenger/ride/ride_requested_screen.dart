@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../../models/ride.dart';
 import '../../../services/api_client.dart';
+import '../../../services/realtime_service.dart';
 import '../../../services/ride_service.dart';
 import '../../../theme/passenger_theme.dart';
 import '../../../widgets/passenger/ride_review_sheet.dart';
@@ -29,6 +30,7 @@ class RideActiveScreen extends StatefulWidget {
 
 class _RideActiveScreenState extends State<RideActiveScreen> {
   late final RideService _rideService = RideService(ApiClient(widget.token));
+  late final RealtimeService _realtime = RealtimeService(token: widget.token);
   Timer? _pollTimer;
   RideDetail? _detail;
   String? _error;
@@ -41,13 +43,24 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   @override
   void initState() {
     super.initState();
+    _realtime.addListener(_onRealtimeEvent);
+    _realtime.connect();
+    _realtime.subscribeRide(widget.rideId);
     _poll();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _poll());
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => _poll());
+  }
+
+  void _onRealtimeEvent(Map<String, dynamic> event) {
+    final rideId = eventRideId(event);
+    if (rideId == null || rideId != widget.rideId) return;
+    _poll();
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _realtime.removeListener(_onRealtimeEvent);
+    _realtime.disconnect();
     _codeController.dispose();
     super.dispose();
   }

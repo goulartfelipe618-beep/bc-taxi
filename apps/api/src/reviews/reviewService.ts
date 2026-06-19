@@ -1,4 +1,5 @@
 import { getRide } from '../match/matchService.js';
+import { emitEvent } from '../realtime/eventBus.js';
 import { findReview, insertReview, toPublicReview } from './reviewStore.js';
 
 export interface SubmitReviewInput {
@@ -46,6 +47,14 @@ export async function submitRideReview(input: SubmitReviewInput) {
     stars: input.stars,
     comment: input.comment,
   });
+
+  void emitEvent(
+    'REVIEW_CREATED',
+    'ride',
+    input.rideId,
+    { reviewId: review.id, stars: input.stars },
+    { userIds: [input.reviewerUserId, reviewedUserId], rideId: input.rideId },
+  );
 
   return toPublicReview(review);
 }

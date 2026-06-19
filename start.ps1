@@ -1,12 +1,14 @@
 # BC Taxi — inicia API + apps Flutter (passageiro e motorista)
+# PowerShell Windows: use npm.cmd (npm.ps1 pode ser bloqueado pela ExecutionPolicy)
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
-$Flutter = "C:\flutter\bin\flutter.bat"
+$Flutter = if (Test-Path "C:\flutter\bin\flutter.bat") { "C:\flutter\bin\flutter.bat" } else { "flutter" }
+$Npm = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
 
 Write-Host "=== BC Taxi Dev ===" -ForegroundColor Cyan
 
 Write-Host "Iniciando API (porta 3000)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$Root\apps\api'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$Root\apps\api'; $Npm run dev"
 
 Start-Sleep -Seconds 2
 
@@ -31,4 +33,5 @@ try {
   Write-Host "API ainda iniciando... aguarde alguns segundos." -ForegroundColor Yellow
 }
 
-Write-Host "`nPronto! Abra os links acima no navegador." -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Pronto! Abra os links acima no navegador." -ForegroundColor Cyan

@@ -2,21 +2,65 @@ import 'package:flutter/material.dart';
 
 import '../../constants/passenger_data.dart';
 import '../../theme/passenger_theme.dart';
-import 'plan_trip_screen.dart';
+import 'passenger_routes.dart';
 
 class PassengerServicesTab extends StatelessWidget {
   const PassengerServicesTab({super.key});
 
+  void _openCategory(BuildContext context, RideCategoryOption category) {
+    PassengerRoutes.openPlanTrip(context, preselectedCategoryId: category.id);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final primary = rideCategories.take(3).toList();
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text('Serviços', style: PassengerTheme.titleLarge),
           const SizedBox(height: 8),
-          Text('Corridas com veículos na cidade', style: PassengerTheme.caption),
+          Text('Vá onde quiser com veículos BC Taxi', style: PassengerTheme.caption),
           const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(child: _LargeServiceCard(category: primary[0], onTap: () => _openCategory(context, primary[0]))),
+              const SizedBox(width: 10),
+              Expanded(child: _LargeServiceCard(category: primary[1], onTap: () => _openCategory(context, primary[1]))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _LargeServiceCard(category: primary[2], onTap: () => _openCategory(context, primary[2]))),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Material(
+                  color: BcColors.grayLight,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: () => PassengerRoutes.openSchedule(context),
+                    borderRadius: BorderRadius.circular(12),
+                    child: const SizedBox(
+                      height: 120,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.event_outlined, size: 36),
+                          SizedBox(height: 8),
+                          Text('Reservar', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text('Todas as categorias', style: PassengerTheme.titleMedium),
+          const SizedBox(height: 12),
           ...rideCategories.map((r) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -24,7 +68,7 @@ class PassengerServicesTab extends StatelessWidget {
                 color: BcColors.grayLight,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlanTripScreen())),
+                  onTap: () => _openCategory(context, r),
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -51,6 +95,7 @@ class PassengerServicesTab extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(r.etaLabel, style: PassengerTheme.caption),
+                              if (r.description != null) Text(r.description!, style: PassengerTheme.caption),
                               if (r.badge != null) ...[
                                 const SizedBox(height: 6),
                                 Container(
@@ -81,6 +126,37 @@ class PassengerServicesTab extends StatelessWidget {
             );
           }),
         ],
+      ),
+    );
+  }
+}
+
+class _LargeServiceCard extends StatelessWidget {
+  const _LargeServiceCard({required this.category, required this.onTap});
+
+  final RideCategoryOption category;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BcColors.grayLight,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 120,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.directions_car_filled_outlined, size: 36),
+              const SizedBox(height: 8),
+              Text(category.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(category.priceLabel, style: PassengerTheme.caption),
+            ],
+          ),
+        ),
       ),
     );
   }

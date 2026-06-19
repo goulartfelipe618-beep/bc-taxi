@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../constants/passenger_data.dart';
 import '../../theme/passenger_theme.dart';
+import 'passenger_routes.dart';
+
 class PassengerActivityTab extends StatelessWidget {
   const PassengerActivityTab({super.key});
 
@@ -16,7 +18,7 @@ class PassengerActivityTab extends StatelessWidget {
             children: [
               Text('Atividade', style: PassengerTheme.titleLarge),
               IconButton(
-                onPressed: () {},
+                onPressed: () => PassengerRoutes.openActivityFilter(context),
                 icon: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(color: BcColors.grayLight, borderRadius: BorderRadius.circular(8)),
@@ -44,49 +46,54 @@ class _FeaturedTripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: PassengerTheme.card,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 120,
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: BcColors.grayLight,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Center(child: Icon(Icons.map_outlined, size: 40, color: BcColors.gray)),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(trip.destination, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-                const SizedBox(height: 4),
-                Text(trip.address, style: PassengerTheme.caption),
-                const SizedBox(height: 8),
-                Row(
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => PassengerRoutes.openTripDetail(context, trip),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: PassengerTheme.card,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 120,
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: BcColors.grayLight, borderRadius: BorderRadius.circular(8)),
+                child: const Center(child: Icon(Icons.map_outlined, size: 40, color: BcColors.gray)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${trip.dateLabel} · ${trip.priceLabel}', style: PassengerTheme.caption),
-                    const Spacer(),
-                    OutlinedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text('Reservar'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: BcColors.black,
-                        side: const BorderSide(color: BcColors.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                      ),
+                    Text(trip.destination, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+                    const SizedBox(height: 4),
+                    Text(trip.address, style: PassengerTheme.caption),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text('${trip.dateLabel} · ${trip.priceLabel}', style: PassengerTheme.caption),
+                        const Spacer(),
+                        OutlinedButton.icon(
+                          onPressed: () => PassengerRoutes.rebookTrip(context, trip),
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Reservar'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: BcColors.black,
+                            side: const BorderSide(color: BcColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -100,7 +107,7 @@ class _TripListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: () => PassengerRoutes.openTripDetail(context, trip),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
@@ -122,7 +129,7 @@ class _TripListRow extends StatelessWidget {
               ),
             ),
             OutlinedButton(
-              onPressed: () {},
+              onPressed: () => PassengerRoutes.rebookTrip(context, trip),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 36),
                 padding: const EdgeInsets.symmetric(horizontal: 14),

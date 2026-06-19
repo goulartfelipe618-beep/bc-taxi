@@ -3,23 +3,56 @@ import 'package:flutter/material.dart';
 import '../../constants/passenger_data.dart';
 import '../../theme/passenger_theme.dart';
 import '../../widgets/passenger/bc_widgets.dart';
-import 'choose_ride_screen.dart';
+import 'passenger_routes.dart';
+import 'widgets/passenger_sheets.dart';
 
-class PlanTripScreen extends StatelessWidget {
-  const PlanTripScreen({super.key, this.initialDestination});
+class PlanTripScreen extends StatefulWidget {
+  const PlanTripScreen({super.key, this.initialDestination, this.preselectedCategoryId});
 
   final String? initialDestination;
+  final String? preselectedCategoryId;
 
-  void _goToChooseRide(BuildContext context, PlaceItem place) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChooseRideScreen(
-          origin: defaultOrigin,
-          destination: place.name,
-          destinationAddress: place.address,
-        ),
-      ),
+  @override
+  State<PlanTripScreen> createState() => _PlanTripScreenState();
+}
+
+class _PlanTripScreenState extends State<PlanTripScreen> {
+  late String _origin = defaultOrigin;
+  String? _destination;
+  String _pickupLabel = 'Recolher agora';
+  String _profileLabel = 'Para mim';
+  final List<String> _stops = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _destination = widget.initialDestination;
+  }
+
+  void _goToChooseRide(PlaceItem place) {
+    PassengerRoutes.openChooseRide(
+      context,
+      origin: _origin,
+      destination: place,
+      preselectedCategoryId: widget.preselectedCategoryId,
     );
+  }
+
+  Future<void> _editOrigin() async {
+    final result = await showEditTextSheet(context, title: 'Origem', initial: _origin, hint: 'Endereço de recolha');
+    if (result != null) setState(() => _origin = result);
+  }
+
+  Future<void> _editDestination() async {
+    final result = await showEditTextSheet(context, title: 'Destino', initial: _destination ?? '', hint: 'Para onde?');
+    if (result != null) {
+      _goToChooseRide(PlaceItem(name: result, address: result));
+    }
+  }
+
+  Future<void> _addStop() async {
+    final result = await showEditTextSheet(context, title: 'Paragem intermédia', initial: '', hint: 'Adicionar paragem');
+    if (result != null) setState(() => _stops.add(result));
   }
 
   @override
@@ -38,9 +71,31 @@ class PlanTripScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              BcPillButton(icon: Icons.access_time, label: 'Recolher agora', onTap: () {}),
+              BcPillButton(
+                icon: Icons.access_time,
+                label: _pickupLabel,
+                onTap: () async {
+                  if (_pickupLabel == 'Recolher agora') {
+                    final choice = await showPickupTimeSheet(context, _pickupLabel);
+                    if (choice == 'Recolher mais tarde') {
+                      if (!context.mounted) return;
+                      PassengerRoutes.openSchedule(context);
+                    }
+                  } else {
+                    final choice = await showPickupTimeSheet(context, _pickupLabel);
+                    if (choice != null) setState(() => _pickupLabel = choice);
+                  }
+                },
+              ),
               const SizedBox(width: 10),
-              BcPillButton(icon: Icons.person_outline, label: 'Para mim', onTap: () {}),
+              BcPillButton(
+                icon: Icons.person_outline,
+                label: _profileLabel,
+                onTap: () async {
+                  final choice = await showProfilePickerSheet(context, _profileLabel);
+                  if (choice != null) setState(() => _profileLabel = choice);
+                },
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -56,7 +111,7 @@ class PlanTripScreen extends StatelessWidget {
                 Column(
                   children: [
                     Container(width: 10, height: 10, decoration: const BoxDecoration(color: BcColors.black, shape: BoxShape.circle)),
-                    Container(width: 2, height: 36, color: BcColors.black),
+                    Container(width: 2, height: 36 + (_stops.length * 24), color: BcColors.black),
                     Container(width: 10, height: 10, decoration: BoxDecoration(border: Border.all(color: BcColors.black, width: 2))),
                   ],
                 ),
@@ -65,20 +120,29 @@ class PlanTripScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(defaultOrigin, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      InkWell(onTap: _editOrigin, child: Text(_origin, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
+                      ..._stops.map(
+                        (s) => Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(s, style: PassengerTheme.caption),
+                        ),
+                      ),
                       const SizedBox(height: 18),
-                      Text(
-                        initialDestination ?? 'Para onde?',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: initialDestination != null ? FontWeight.w600 : FontWeight.w400,
-                          color: initialDestination != null ? BcColors.black : BcColors.gray,
+                      InkWell(
+                        onTap: _editDestination,
+                        child: Text(
+                          _destination ?? 'Para onde?',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: _destination != null ? FontWeight.w600 : FontWeight.w400,
+                            color: _destination != null ? BcColors.black : BcColors.gray,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(onPressed: () {}, icon: const Icon(Icons.add_circle_outline)),
+                IconButton(onPressed: _addStop, icon: const Icon(Icons.add_circle_outline)),
               ],
             ),
           ),
@@ -91,19 +155,11 @@ class PlanTripScreen extends StatelessWidget {
             ],
           ),
           const Divider(height: 24),
-          ...savedPlaces.map((p) => PlaceListTile(
-                name: p.name,
-                address: p.address,
-                leading: Icons.star_outline,
-                onTap: () => _goToChooseRide(context, p),
-              )),
+          ...savedPlaces.map((p) => PlaceListTile(name: p.name, address: p.address, leading: Icons.star_outline, onTap: () => _goToChooseRide(p))),
           const Divider(height: 24),
-          ...recentPlaces.map((p) => PlaceListTile(
-                name: p.name,
-                address: p.address,
-                distanceKm: p.distanceKm,
-                onTap: () => _goToChooseRide(context, p),
-              )),
+          ...recentPlaces.map(
+            (p) => PlaceListTile(name: p.name, address: p.address, distanceKm: p.distanceKm, onTap: () => _goToChooseRide(p)),
+          ),
         ],
       ),
     );

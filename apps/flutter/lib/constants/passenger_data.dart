@@ -21,6 +21,7 @@ class RideCategoryOption {
     required this.etaLabel,
     this.badge,
     this.badgeIsGreen = false,
+    this.description,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class RideCategoryOption {
   final String etaLabel;
   final String? badge;
   final bool badgeIsGreen;
+  final String? description;
 }
 
 class TripActivityItem {
@@ -38,22 +40,133 @@ class TripActivityItem {
     required this.address,
     required this.dateLabel,
     required this.priceLabel,
+    this.origin = defaultOrigin,
+    this.category = 'BC Taxi',
+    this.paymentMethod = 'PIX',
+    this.driverName,
     this.failed = false,
+    this.featured = false,
   });
 
   final String destination;
   final String address;
   final String dateLabel;
   final String priceLabel;
+  final String origin;
+  final String category;
+  final String paymentMethod;
+  final String? driverName;
   final bool failed;
+  final bool featured;
 }
 
 class VehicleService {
-  const VehicleService({required this.label, required this.icon});
+  const VehicleService({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.categoryId,
+  });
 
+  final String id;
   final String label;
   final IconData icon;
+  final String? categoryId;
 }
+
+class MockUser {
+  const MockUser({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.gender,
+    required this.rating,
+    required this.walletBalance,
+    required this.passwordChangedLabel,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final String gender;
+  final double rating;
+  final double walletBalance;
+  final String passwordChangedLabel;
+}
+
+class AccountMenuItem {
+  const AccountMenuItem({
+    required this.id,
+    required this.title,
+    required this.icon,
+    this.subtitle,
+    this.badge,
+  });
+
+  final String id;
+  final String title;
+  final IconData icon;
+  final String? subtitle;
+  final String? badge;
+}
+
+class PaymentMethodItem {
+  const PaymentMethodItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.subtitle,
+    this.isDefault = false,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final String? subtitle;
+  final bool isDefault;
+}
+
+class WalletTransaction {
+  const WalletTransaction({required this.title, required this.dateLabel, required this.amountLabel});
+
+  final String title;
+  final String dateLabel;
+  final String amountLabel;
+}
+
+class MockMessage {
+  const MockMessage({
+    required this.title,
+    required this.preview,
+    required this.body,
+    required this.timeLabel,
+    required this.icon,
+  });
+
+  final String title;
+  final String preview;
+  final String body;
+  final String timeLabel;
+  final IconData icon;
+}
+
+class LoginSession {
+  const LoginSession({required this.device, required this.location, required this.platform});
+
+  final String device;
+  final String location;
+  final String platform;
+}
+
+const mockUser = MockUser(
+  name: 'Felipe Goulart',
+  email: 'felipe.goulart@email.com',
+  phone: '+55 47 98820-5126',
+  gender: 'Homem',
+  rating: 4.93,
+  walletBalance: 42.50,
+  passwordChangedLabel: '7 de agosto de 2024',
+);
 
 const defaultOrigin = 'Rua Pedro Pinto Felipe, 87';
 
@@ -88,6 +201,7 @@ const rideCategories = [
     priceLabel: 'R\$ 17,44',
     etaLabel: '4 min · chegada em 6 min',
     badge: 'Mais rápido',
+    description: 'Corridas económicas do dia a dia',
   ),
   RideCategoryOption(
     id: 'comfort',
@@ -97,6 +211,7 @@ const rideCategories = [
     etaLabel: '7 min · chegada em 9 min',
     badge: 'Boa oferta',
     badgeIsGreen: true,
+    description: 'Veículos mais recentes e confortáveis',
   ),
   RideCategoryOption(
     id: 'xl',
@@ -104,6 +219,7 @@ const rideCategories = [
     capacity: 6,
     priceLabel: 'R\$ 28,50',
     etaLabel: '8 min · chegada em 11 min',
+    description: 'Ideal para grupos e bagagem extra',
   ),
   RideCategoryOption(
     id: 'wait_save',
@@ -111,21 +227,32 @@ const rideCategories = [
     capacity: 4,
     priceLabel: 'R\$ 14,20',
     etaLabel: '12 min · chegada em 18 min',
+    description: 'Espere um pouco mais e pague menos',
   ),
 ];
 
 const pastTrips = [
   TripActivityItem(
     destination: 'Hotel Blumenau',
-    address: 'R. Mil e Um, 129 - Centro',
-    dateLabel: '12/06 · 19:57',
-    priceLabel: 'R\$ 9,28',
+    address: 'R. Mil e Um, 129 - Da Barra',
+    dateLabel: '19/06 · 04:45',
+    priceLabel: 'R\$ 14,58',
+    driverName: 'Carlos M.',
+    featured: true,
+  ),
+  TripActivityItem(
+    destination: 'Rua 2500, 910',
+    address: 'Centro, Balneário Camboriú',
+    dateLabel: '19/06 · 02:38',
+    priceLabel: 'R\$ 9,99',
+    driverName: 'Ana P.',
   ),
   TripActivityItem(
     destination: 'Shopping Atlântico',
     address: 'Av. Atlântica, 2550',
     dateLabel: '08/06 · 14:22',
     priceLabel: 'R\$ 14,50',
+    driverName: 'João S.',
   ),
   TripActivityItem(
     destination: 'Aeroporto Navegantes',
@@ -137,8 +264,77 @@ const pastTrips = [
 ];
 
 const vehicleServices = [
-  VehicleService(label: 'Viajar', icon: Icons.directions_car_filled_outlined),
-  VehicleService(label: 'Reservar', icon: Icons.event_outlined),
-  VehicleService(label: 'Conforto', icon: Icons.airline_seat_recline_normal_outlined),
-  VehicleService(label: 'BC XL', icon: Icons.airport_shuttle_outlined),
+  VehicleService(id: 'travel', label: 'Viajar', icon: Icons.directions_car_filled_outlined, categoryId: 'economy'),
+  VehicleService(id: 'reserve', label: 'Reservar', icon: Icons.event_outlined),
+  VehicleService(id: 'comfort', label: 'Conforto', icon: Icons.airline_seat_recline_normal_outlined, categoryId: 'comfort'),
+  VehicleService(id: 'xl', label: 'BC XL', icon: Icons.airport_shuttle_outlined, categoryId: 'xl'),
+];
+
+const accountMenuItems = [
+  AccountMenuItem(id: 'personal', title: 'Informações pessoais', icon: Icons.person_outline),
+  AccountMenuItem(id: 'security', title: 'Segurança', icon: Icons.shield_outlined),
+  AccountMenuItem(id: 'privacy', title: 'Privacidade e Dados', icon: Icons.lock_outline),
+  AccountMenuItem(id: 'wallet', title: 'Pagamentos e carteira', icon: Icons.account_balance_wallet_outlined),
+  AccountMenuItem(id: 'verification', title: 'Verificação de identidade', icon: Icons.badge_outlined),
+  AccountMenuItem(
+    id: 'driver',
+    title: 'Conduza com a BC Taxi',
+    icon: Icons.drive_eta_outlined,
+    subtitle: 'Aumente os seus rendimentos a conduzir',
+  ),
+  AccountMenuItem(id: 'legal', title: 'Informações legais', icon: Icons.info_outline),
+];
+
+const paymentMethods = [
+  PaymentMethodItem(id: 'pix', label: 'PIX', icon: Icons.pix, subtitle: 'Pagamento instantâneo', isDefault: true),
+  PaymentMethodItem(id: 'cash', label: 'Dinheiro', icon: Icons.payments_outlined),
+  PaymentMethodItem(id: 'card', label: 'Cartão •••• 4242', icon: Icons.credit_card, subtitle: 'Visa'),
+];
+
+const walletTransactions = [
+  WalletTransaction(title: 'Corrida Hotel Blumenau', dateLabel: '19/06', amountLabel: '- R\$ 14,58'),
+  WalletTransaction(title: 'Recarga PIX', dateLabel: '15/06', amountLabel: '+ R\$ 50,00'),
+];
+
+const helpTopics = [
+  'Problema com uma viagem recente',
+  'Alterar destino durante a corrida',
+  'Pagamento recusado',
+  'Objeto perdido no veículo',
+  'Conta e dados pessoais',
+];
+
+const legalDocuments = [
+  'Termos e Condições',
+  'Política de Privacidade',
+  'Licenças de software',
+  'Avisos legais',
+];
+
+const mockMessages = [
+  MockMessage(
+    title: 'Promoção BC Taxi',
+    preview: '10% de desconto na próxima corrida',
+    body: 'Use o código BCTAXI10 na próxima viagem até domingo.',
+    timeLabel: 'Ontem',
+    icon: Icons.local_offer_outlined,
+  ),
+  MockMessage(
+    title: 'Recibo da viagem',
+    preview: 'Hotel Blumenau · R\$ 14,58',
+    body: 'O recibo da sua viagem de 19/06 está disponível.',
+    timeLabel: '19/06',
+    icon: Icons.receipt_long_outlined,
+  ),
+];
+
+const loginSessions = [
+  LoginSession(device: 'Infinix X6852', location: 'Itajaí, Brasil', platform: 'BC Taxi App'),
+  LoginSession(device: 'Telemóvel Android', location: 'Balneário Camboriú', platform: 'BC Taxi Web'),
+  LoginSession(device: 'Desconhecido', location: 'São Paulo', platform: 'BC Taxi Web'),
+];
+
+const promoBanners = [
+  'Poupe na sua viagem com BC Pass',
+  'Experimente Conforto com preço especial',
 ];

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../constants/passenger_data.dart';
+import '../../../models/trip_draft.dart';
+import '../../../services/api_client.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/payment_service.dart';
 import '../../../theme/passenger_theme.dart';
 import '../../../widgets/passenger/bc_subpage_scaffold.dart';
+import '../passenger_routes.dart';
 
 class PaymentMethodsScreen extends StatefulWidget {
   const PaymentMethodsScreen({super.key});
@@ -12,80 +18,141 @@ class PaymentMethodsScreen extends StatefulWidget {
 }
 
 class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
-  late String _selected = paymentMethods.firstWhere((m) => m.isDefault).id;
+  List<PaymentMethod> _methods = [];
+  late String _selected;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = demoPaymentMethodIds['pix']!;
+    _loadMethods();
+  }
+
+  Future<void> _loadMethods() async {
+    final token = context.read<AuthService>().token;
+    if (token == null) {
+      _useFallback();
+      return;
+    }
+    try {
+      final methods = await PaymentService(ApiClient(token)).fetchMethods();
+      if (!mounted) return;
+      setState(() {
+        _methods = methods;
+        _selected = methods.firstWhere((m) => m.isDefault, orElse: () => methods.first).id;
+        _loading = false;
+      });
+    } catch (_) {
+      _useFallback();
+    }
+  }
+
+  void _useFallback() {
+    if (!mounted) return;
+    setState(() {
+      _methods = paymentMethods
+          .map(
+            (m) => PaymentMethod(
+              id: paymentMethodIdForLabel(m.label),
+              type: m.id,
+              label: m.label,
+              isDefault: m.isDefault,
+            ),
+          )
+          .toList();
+      _selected = _methods.firstWhere((m) => m.isDefault, orElse: () => _methods.first).id;
+      _loading = false;
+    });
+  }
+
+  IconData _iconFor(String type) {
+    switch (type) {
+      case 'cash':
+        return Icons.payments_outlined;
+      case 'card':
+      case 'debit':
+        return Icons.credit_card;
+      default:
+        return Icons.pix;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return BcSubpageScaffold(
       title: 'Pagamento',
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Perfil de faturação', style: PassengerTheme.titleMedium),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _profileChip('Pessoal', Icons.person_outline, true),
-              const SizedBox(width: 10),
-              _profileChip('Empresarial', Icons.work_outline, false),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text('Métodos de pagamento', style: PassengerTheme.titleMedium),
-          const SizedBox(height: 8),
-          ...paymentMethods.map((m) {
-            final selected = m.id == _selected;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Material(
-                color: selected ? BcColors.grayLight : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: () => setState(() => _selected = m.id),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: BcColors.black))
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text('Perfil de faturação', style: PassengerTheme.titleMedium),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _profileChip('Pessoal', Icons.person_outline, true),
+                    const SizedBox(width: 10),
+                    _profileChip('Empresarial', Icons.work_outline, false),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text('Métodos de pagamento', style: PassengerTheme.titleMedium),
+                const SizedBox(height: 8),
+                ..._methods.map((m) {
+                  final selected = m.id == _selected;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: selected ? BcColors.grayLight : Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: selected ? BcColors.black : BcColors.border, width: selected ? 2 : 1),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(m.icon),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      child: InkWell(
+                        onTap: () => setState(() => _selected = m.id),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: selected ? BcColors.black : BcColors.border, width: selected ? 2 : 1),
+                          ),
+                          child: Row(
                             children: [
-                              Text(m.label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                              if (m.subtitle != null) Text(m.subtitle!, style: PassengerTheme.caption),
+                              Icon(_iconFor(m.type)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(m.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    if (m.brand != null) Text(m.brand!, style: PassengerTheme.caption),
+                                  ],
+                                ),
+                              ),
+                              if (selected) const Icon(Icons.check_circle, color: BcColors.black),
                             ],
                           ),
                         ),
-                        if (selected) const Icon(Icons.check_circle, color: BcColors.black),
-                      ],
+                      ),
                     ),
-                  ),
+                  );
+                }),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adicionar cartão'))),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Adicionar método'),
                 ),
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adicionar cartão'))),
-            icon: const Icon(Icons.add),
-            label: const Text('Adicionar método'),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context, paymentMethods.firstWhere((m) => m.id == _selected).label);
-            },
-            style: FilledButton.styleFrom(backgroundColor: BcColors.black, padding: const EdgeInsets.symmetric(vertical: 16)),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () {
+                    final method = _methods.firstWhere((m) => m.id == _selected);
+                    Navigator.pop(context, PaymentMethodSelection(id: method.id, label: method.label));
+                  },
+                  style: FilledButton.styleFrom(backgroundColor: BcColors.black, padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: const Text('Confirmar'),
+                ),
+              ],
+            ),
     );
   }
 

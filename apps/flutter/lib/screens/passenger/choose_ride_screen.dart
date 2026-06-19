@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../constants/passenger_data.dart';
+import '../../models/trip_draft.dart';
+import '../../services/api_client.dart';
+import '../../services/auth_service.dart';
 import '../../services/catalog_service.dart';
+import '../../services/ride_service.dart';
 import '../../theme/passenger_theme.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
@@ -9,18 +14,12 @@ import 'widgets/passenger_sheets.dart';
 class ChooseRideScreen extends StatefulWidget {
   const ChooseRideScreen({
     super.key,
-    required this.origin,
-    required this.destination,
-    required this.destinationAddress,
+    required this.trip,
     this.preselectedCategoryId,
-    this.scheduled = false,
   });
 
-  final String origin;
-  final String destination;
-  final String destinationAddress;
+  final TripDraft trip;
   final String? preselectedCategoryId;
-  final bool scheduled;
 
   @override
   State<ChooseRideScreen> createState() => _ChooseRideScreenState();
@@ -30,19 +29,23 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
   List<RideCategoryOption> _categories = rideCategories;
   late String _selectedId = widget.preselectedCategoryId ?? rideCategories.first.id;
   String _paymentLabel = 'PIX';
+  String _paymentMethodId = demoPaymentMethodIds['pix']!;
   bool _promoApplied = false;
   bool _loadingCategories = true;
+  bool _requesting = false;
+  TripDraft? _tripWithRoute;
 
   RideCategoryOption get _selected => _categories.firstWhere((r) => r.id == _selectedId, orElse: () => _categories.first);
 
   @override
   void initState() {
     super.initState();
+    _tripWithRoute = widget.trip;
     _loadCategories();
   }
 
   Future<void> _loadCategories() async {
-    final immediateOnly = !widget.scheduled;
+    final immediateOnly = !widget.trip.scheduled;
     final cats = await CatalogService.fetchPassengerCategories(immediateOnly: immediateOnly);
     if (!mounted) return;
     setState(() {
@@ -58,8 +61,9 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
   }
 
   Future<void> _refreshQuotes() async {
-    const distanceKm = 7.0;
-    const durationMin = 18.0;
+    final trip = _tripWithRoute ?? widget.trip;
+    final distanceKm = trip.distanceKm ?? 7.0;
+    final durationMin = trip.durationMin ?? 18.0;
     final updated = <RideCategoryOption>[];
     for (final c in _categories) {
       final quote = await CatalogService.fetchQuote(categoryCode: c.id, distanceKm: distanceKm, durationMin: durationMin);
@@ -81,8 +85,38 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
     setState(() => _categories = updated);
   }
 
+  Future<void> _requestRide() async {
+    final auth = context.read<AuthService>();
+    final token = auth.token;
+    if (token == null) return;
+
+    setState(() => _requesting = true);
+    try {
+      final rideService = RideService(ApiClient(token));
+      final result = await rideService.createRide(
+        trip: _tripWithRoute ?? widget.trip,
+        categoryCode: _selectedId,
+        paymentMethodId: _paymentMethodId,
+      );
+      if (!mounted) return;
+      PassengerRoutes.openRideActive(
+        context,
+        rideId: result.ride.id,
+        category: _selected.name,
+        destination: widget.trip.dropoffName,
+        token: token,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final trip = _tripWithRoute ?? widget.trip;
     return Scaffold(
       backgroundColor: BcColors.grayLight,
       body: Column(
@@ -108,7 +142,7 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: InkWell(
-                            onTap: () => PassengerRoutes.openPlanTrip(context, destination: widget.destination),
+                            onTap: () => PassengerRoutes.openPlanTrip(context, destination: trip.dropoffName),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -122,7 +156,7 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                                       const SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
-                                          widget.origin,
+                                          trip.pickupAddress,
                                           style: PassengerTheme.caption.copyWith(fontSize: 12),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -132,7 +166,7 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    widget.destination,
+                                    trip.dropoffName,
                                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -168,70 +202,70 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                     child: _loadingCategories
                         ? const Center(child: CircularProgressIndicator(color: BcColors.black))
                         : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _categories.length,
-                      itemBuilder: (context, i) {
-                        final r = _categories[i];
-                        final selected = r.id == _selectedId;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Material(
-                            color: selected ? BcColors.grayLight : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            child: InkWell(
-                              onTap: () => setState(() => _selectedId = r.id),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _categories.length,
+                            itemBuilder: (context, i) {
+                              final r = _categories[i];
+                              final selected = r.id == _selectedId;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Material(
+                                  color: selected ? BcColors.grayLight : Colors.white,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: selected ? BcColors.black : BcColors.border, width: selected ? 2 : 1),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 56,
-                                      height: 40,
-                                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                                      child: const Icon(Icons.directions_car_filled, size: 32),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                  child: InkWell(
+                                    onTap: () => setState(() => _selectedId = r.id),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: selected ? BcColors.black : BcColors.border, width: selected ? 2 : 1),
+                                      ),
+                                      child: Row(
                                         children: [
-                                          Row(
-                                            children: [
-                                              Text(r.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                                              const SizedBox(width: 4),
-                                              Icon(Icons.person_outline, size: 14, color: BcColors.gray),
-                                              Text('${r.capacity}', style: PassengerTheme.caption),
-                                            ],
+                                          Container(
+                                            width: 56,
+                                            height: 40,
+                                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                                            child: const Icon(Icons.directions_car_filled, size: 32),
                                           ),
-                                          Text(r.etaLabel, style: PassengerTheme.caption),
-                                          if (r.badge != null) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              r.badge!,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: r.badgeIsGreen ? BcColors.green : BcColors.blue,
-                                              ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Text(r.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                                                    const SizedBox(width: 4),
+                                                    Icon(Icons.person_outline, size: 14, color: BcColors.gray),
+                                                    Text('${r.capacity}', style: PassengerTheme.caption),
+                                                  ],
+                                                ),
+                                                Text(r.etaLabel, style: PassengerTheme.caption),
+                                                if (r.badge != null) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    r.badge!,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: r.badgeIsGreen ? BcColors.green : BcColors.blue,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
-                                          ],
+                                          ),
+                                          Text(r.priceLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                                         ],
                                       ),
                                     ),
-                                    Text(r.priceLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -260,7 +294,12 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                     child: InkWell(
                       onTap: () async {
                         final result = await PassengerRoutes.openPaymentMethods(context);
-                        if (result != null && mounted) setState(() => _paymentLabel = result);
+                        if (result != null && mounted) {
+                          setState(() {
+                            _paymentLabel = result.label;
+                            _paymentMethodId = result.id;
+                          });
+                        }
                       },
                       borderRadius: BorderRadius.circular(12),
                       child: Row(
@@ -300,18 +339,18 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                       children: [
                         Expanded(
                           child: FilledButton(
-                            onPressed: () {
-                              PassengerRoutes.openRideRequested(context, category: _selected.name, destination: widget.destination);
-                            },
+                            onPressed: _requesting ? null : _requestRide,
                             style: FilledButton.styleFrom(
                               backgroundColor: BcColors.black,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: Text(
-                              widget.scheduled ? 'Agendar ${_selected.name}' : 'Escolher ${_selected.name}',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                            ),
+                            child: _requesting
+                                ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : Text(
+                                    widget.trip.scheduled ? 'Agendar ${_selected.name}' : 'Escolher ${_selected.name}',
+                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 10),

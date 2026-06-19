@@ -27,6 +27,8 @@ import {
   reissueStartCodesForRide,
   verifyStartCode,
 } from '../ride/lifecycleService.js';
+import { submitRideReview } from '../reviews/reviewService.js';
+import { getPlainCodesForTest } from '../ride/codeStore.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 
 const createRideSchema = z.object({
@@ -49,6 +51,11 @@ const createRideSchema = z.object({
 
 const verifyCodeSchema = z.object({
   code: z.string().regex(/^\d{6}$/),
+});
+
+const reviewSchema = z.object({
+  stars: z.number().int().min(1).max(5),
+  comment: z.string().max(500).optional(),
 });
 
 export function statusLabel(status: RideStatus): string {
@@ -160,7 +167,18 @@ ridesRouter.get('/:id', async (req, res) => {
     return;
   }
   const verification = await getRideVerification(ride.id);
-  res.json({ ride: toPublicRide(ride), verification });
+  let startCodes: { yours: string; partner: string } | undefined;
+  if (useMemory()) {
+    const plain = getPlainCodesForTest(ride.id);
+    if (plain) {
+      if (ride.passengerId === req.user!.id) {
+        startCodes = { yours: plain.passenger, partner: plain.driver };
+      } else if (ride.driverId === req.user!.id) {
+        startCodes = { yours: plain.driver, partner: plain.passenger };
+      }
+    }
+  }
+  res.json({ ride: toPublicRide(ride), verification, ...(startCodes ? { startCodes } : {}) });
 });
 
 ridesRouter.post('/:id/cancel', async (req, res) => {
@@ -243,6 +261,35 @@ ridesRouter.post('/:id/reissue-codes', async (req, res) => {
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Falha ao reemitir códigos';
     res.status(409).json({ error: message });
+  }
+});
+
+ridesRouter.post('/:id/review', async (req, res) => {
+  const parsed = reviewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const role = req.user!.role as 'passenger' | 'driver';
+  if (role !== 'passenger' && role !== 'driver') {
+    res.status(403).json({ error: 'Papel inválido para avaliação' });
+    return;
+  }
+
+  try {
+    const review = await submitRideReview({
+      rideId: req.params.id,
+      reviewerUserId: req.user!.id,
+      reviewerRole: role,
+      stars: parsed.data.stars,
+      comment: parsed.data.comment,
+    });
+    res.status(201).json({ review });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao enviar avaliação';
+    const status = message.includes('já enviada') ? 409 : message.includes('não encontrada') ? 404 : 409;
+    res.status(status).json({ error: message });
   }
 });
 

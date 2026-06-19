@@ -19,6 +19,7 @@ class AuthService extends ChangeNotifier {
   String? _error;
 
   AppUser? get user => _user;
+  String? get token => _token;
   bool get loading => _loading;
   String? get error => _error;
   bool get isLoggedIn => _user != null;

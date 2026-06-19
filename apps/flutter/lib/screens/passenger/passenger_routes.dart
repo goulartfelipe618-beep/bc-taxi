@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../constants/passenger_data.dart';
+import '../../models/trip_draft.dart';
+import '../../services/auth_service.dart';
+import '../../services/trip_resolver.dart';
 import 'account/account_hub_screen.dart';
 import 'account/help_screen.dart';
 import 'account/legal_screen.dart';
@@ -18,6 +22,13 @@ import 'payment/payment_methods_screen.dart';
 import 'plan_trip_screen.dart';
 import 'ride/ride_requested_screen.dart';
 import 'schedule/schedule_ride_screen.dart';
+
+class PaymentMethodSelection {
+  const PaymentMethodSelection({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
 
 class PassengerRoutes {
   static void openPlanTrip(BuildContext context, {String? destination, String? preselectedCategoryId, bool schedule = false}) {
@@ -37,50 +48,43 @@ class PassengerRoutes {
 
   static void openConfirmPickup(
     BuildContext context, {
-    required PlaceItem destination,
-    String origin = defaultOrigin,
+    required TripDraft trip,
     String? preselectedCategoryId,
-    bool scheduled = false,
   }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ConfirmPickupScreen(
-          origin: origin,
-          destination: destination.name,
-          destinationAddress: destination.address,
+          trip: trip,
           preselectedCategoryId: preselectedCategoryId,
-          scheduled: scheduled,
         ),
       ),
     );
   }
 
-  static void openChooseRide(
+  static Future<void> openChooseRide(
     BuildContext context, {
     required PlaceItem destination,
     String origin = defaultOrigin,
     String? preselectedCategoryId,
     bool scheduled = false,
     bool skipPickupConfirm = false,
-  }) {
+  }) async {
+    final trip = await TripResolver.build(
+      pickupAddress: origin,
+      dropoffName: destination.name,
+      dropoffAddress: destination.address,
+      scheduled: scheduled,
+    );
+    if (!context.mounted) return;
     if (!skipPickupConfirm) {
-      openConfirmPickup(
-        context,
-        destination: destination,
-        origin: origin,
-        preselectedCategoryId: preselectedCategoryId,
-        scheduled: scheduled,
-      );
+      openConfirmPickup(context, trip: trip, preselectedCategoryId: preselectedCategoryId);
       return;
     }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChooseRideScreen(
-          origin: origin,
-          destination: destination.name,
-          destinationAddress: destination.address,
+          trip: trip,
           preselectedCategoryId: preselectedCategoryId,
-          scheduled: scheduled,
         ),
       ),
     );
@@ -121,16 +125,38 @@ class PassengerRoutes {
   static void openSettings(BuildContext context) => _push(context, const SettingsScreen());
   static void openLegal(BuildContext context) => _push(context, const LegalScreen());
   static void openVerification(BuildContext context) => _push(context, const VerificationScreen());
-  static Future<String?> openPaymentMethods(BuildContext context) {
-    return Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const PaymentMethodsScreen()));
+  static Future<PaymentMethodSelection?> openPaymentMethods(BuildContext context) {
+    return Navigator.of(context).push<PaymentMethodSelection>(
+      MaterialPageRoute(builder: (_) => const PaymentMethodsScreen()),
+    );
   }
   static void openSchedule(BuildContext context, {PlaceItem? destination}) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => ScheduleRideScreen(destination: destination)));
 
-  static void openRideRequested(BuildContext context, {required String category, required String destination}) {
+  static void openRideActive(
+    BuildContext context, {
+    required String rideId,
+    required String category,
+    required String destination,
+    required String token,
+  }) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => RideRequestedScreen(category: category, destination: destination)),
+      MaterialPageRoute(
+        builder: (_) => RideActiveScreen(
+          rideId: rideId,
+          categoryName: category,
+          destination: destination,
+          token: token,
+        ),
+      ),
     );
+  }
+
+  /// @deprecated Use [openRideActive]
+  static void openRideRequested(BuildContext context, {required String category, required String destination}) {
+    final token = context.read<AuthService>().token;
+    if (token == null) return;
+    openRideActive(context, rideId: '', category: category, destination: destination, token: token);
   }
 
   static void _push(BuildContext context, Widget page) {

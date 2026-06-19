@@ -17,9 +17,14 @@ export const pool = config.useMemoryDb
 
 export async function migrate() {
   if (config.useMemoryDb) return;
-  const schemaPath = join(__dirname, '../../../database/schema.sql');
-  const sql = readFileSync(schemaPath, 'utf8');
-  await pool.query(sql);
+  const schemaDir = join(__dirname, '../../../database');
+  for (const file of ['schema.sql', 'schema_operational.sql']) {
+    const schemaPath = join(schemaDir, file);
+    const sql = readFileSync(schemaPath, 'utf8');
+    await pool.query(sql);
+  }
+  const { seedRideCategories } = await import('./seed/rideCategories.js');
+  await seedRideCategories(pool);
 }
 
 export type DbUser = {

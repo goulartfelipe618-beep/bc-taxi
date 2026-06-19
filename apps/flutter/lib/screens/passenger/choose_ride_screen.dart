@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../constants/passenger_data.dart';
+import '../../services/catalog_service.dart';
 import '../../theme/passenger_theme.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
@@ -26,11 +27,59 @@ class ChooseRideScreen extends StatefulWidget {
 }
 
 class _ChooseRideScreenState extends State<ChooseRideScreen> {
+  List<RideCategoryOption> _categories = rideCategories;
   late String _selectedId = widget.preselectedCategoryId ?? rideCategories.first.id;
   String _paymentLabel = 'PIX';
   bool _promoApplied = false;
+  bool _loadingCategories = true;
 
-  RideCategoryOption get _selected => rideCategories.firstWhere((r) => r.id == _selectedId);
+  RideCategoryOption get _selected => _categories.firstWhere((r) => r.id == _selectedId, orElse: () => _categories.first);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final immediateOnly = !widget.scheduled;
+    final cats = await CatalogService.fetchPassengerCategories(immediateOnly: immediateOnly);
+    if (!mounted) return;
+    setState(() {
+      _categories = cats;
+      _loadingCategories = false;
+      if (!_categories.any((c) => c.id == _selectedId)) {
+        _selectedId = widget.preselectedCategoryId != null && _categories.any((c) => c.id == widget.preselectedCategoryId)
+            ? widget.preselectedCategoryId!
+            : _categories.first.id;
+      }
+    });
+    await _refreshQuotes();
+  }
+
+  Future<void> _refreshQuotes() async {
+    const distanceKm = 7.0;
+    const durationMin = 18.0;
+    final updated = <RideCategoryOption>[];
+    for (final c in _categories) {
+      final quote = await CatalogService.fetchQuote(categoryCode: c.id, distanceKm: distanceKm, durationMin: durationMin);
+      updated.add(
+        RideCategoryOption(
+          id: c.id,
+          name: c.name,
+          capacity: c.capacity,
+          priceLabel: quote?.passengerFareLabel ?? c.priceLabel,
+          etaLabel: c.etaLabel,
+          badge: c.badge,
+          badgeIsGreen: c.badgeIsGreen,
+          description: c.description,
+          requiresScheduling: c.requiresScheduling,
+        ),
+      );
+    }
+    if (!mounted) return;
+    setState(() => _categories = updated);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,11 +165,13 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                     child: Text('Escolha uma corrida', style: PassengerTheme.titleMedium.copyWith(fontSize: 20)),
                   ),
                   Expanded(
-                    child: ListView.builder(
+                    child: _loadingCategories
+                        ? const Center(child: CircularProgressIndicator(color: BcColors.black))
+                        : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: rideCategories.length,
+                      itemCount: _categories.length,
                       itemBuilder: (context, i) {
-                        final r = rideCategories[i];
+                        final r = _categories[i];
                         final selected = r.id == _selectedId;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 10),

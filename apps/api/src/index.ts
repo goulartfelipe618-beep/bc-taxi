@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config.js';
 import { migrate, pool } from './db.js';
 import { authRouter } from './routes/auth.js';
+import { categoriesRouter, configRouter, quotesRouter } from './routes/catalog.js';
 
 async function main() {
   await migrate();
@@ -21,6 +22,9 @@ async function main() {
   });
 
   app.use('/auth', authRouter);
+  app.use('/v1/categories', categoriesRouter);
+  app.use('/v1/quotes', quotesRouter);
+  app.use('/v1/config', configRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Rota não encontrada' });

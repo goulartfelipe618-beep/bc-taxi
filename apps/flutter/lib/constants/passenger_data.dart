@@ -22,6 +22,7 @@ class RideCategoryOption {
     this.badge,
     this.badgeIsGreen = false,
     this.description,
+    this.requiresScheduling = false,
   });
 
   final String id;
@@ -32,6 +33,7 @@ class RideCategoryOption {
   final String? badge;
   final bool badgeIsGreen;
   final String? description;
+  final bool requiresScheduling;
 }
 
 class PickupSpot {
@@ -212,8 +214,8 @@ const savedPlaces = [
 
 const rideCategories = [
   RideCategoryOption(
-    id: 'economy',
-    name: 'BC Taxi',
+    id: 'economico',
+    name: 'Econômico',
     capacity: 4,
     priceLabel: 'R\$ 17,44',
     etaLabel: '4 min · chegada em 6 min',
@@ -222,7 +224,7 @@ const rideCategories = [
   ),
   RideCategoryOption(
     id: 'comfort',
-    name: 'Conforto',
+    name: 'Comfort',
     capacity: 4,
     priceLabel: 'R\$ 22,90',
     etaLabel: '7 min · chegada em 9 min',
@@ -231,17 +233,25 @@ const rideCategories = [
     description: 'Veículos mais recentes e confortáveis',
   ),
   RideCategoryOption(
-    id: 'xl',
-    name: 'BC XL',
+    id: 'executivo',
+    name: 'Executivo',
+    capacity: 4,
+    priceLabel: 'R\$ 25,20',
+    etaLabel: '8 min · chegada em 11 min',
+    description: 'Atendimento premium',
+  ),
+  RideCategoryOption(
+    id: 'suv',
+    name: 'SUV',
     capacity: 6,
     priceLabel: 'R\$ 28,50',
-    etaLabel: '8 min · chegada em 11 min',
+    etaLabel: '10 min · chegada em 14 min',
     description: 'Ideal para grupos e bagagem extra',
   ),
   RideCategoryOption(
-    id: 'wait_save',
-    name: 'Espere e economize',
-    capacity: 4,
+    id: 'compartilhado',
+    name: 'Compartilhado',
+    capacity: 2,
     priceLabel: 'R\$ 14,20',
     etaLabel: '12 min · chegada em 18 min',
     description: 'Espere um pouco mais e pague menos',
@@ -289,21 +299,21 @@ const pastTrips = [
 ];
 
 const serviceGridPrimary = [
-  VehicleService(id: 'travel', label: 'Viajar', icon: Icons.directions_car_filled_outlined, categoryId: 'economy'),
-  VehicleService(id: 'comfort', label: 'Conforto', icon: Icons.airline_seat_recline_normal_outlined, categoryId: 'comfort'),
-  VehicleService(id: 'xl', label: 'BC XL', icon: Icons.airport_shuttle_outlined, categoryId: 'xl'),
+  VehicleService(id: 'travel', label: 'Viajar', icon: Icons.directions_car_filled_outlined, categoryId: 'economico'),
+  VehicleService(id: 'comfort', label: 'Comfort', icon: Icons.airline_seat_recline_normal_outlined, categoryId: 'comfort'),
+  VehicleService(id: 'suv', label: 'SUV', icon: Icons.airport_shuttle_outlined, categoryId: 'suv'),
 ];
 
 const serviceGridSecondary = [
   VehicleService(id: 'reserve', label: 'Reservar', icon: Icons.event_outlined),
-  VehicleService(id: 'wait_save', label: 'Espere e economize', icon: Icons.schedule_outlined, categoryId: 'wait_save'),
+  VehicleService(id: 'compartilhado', label: 'Compartilhado', icon: Icons.schedule_outlined, categoryId: 'compartilhado'),
 ];
 
 const vehicleServices = [
-  VehicleService(id: 'travel', label: 'Viajar', icon: Icons.directions_car_filled_outlined, categoryId: 'economy'),
+  VehicleService(id: 'travel', label: 'Viajar', icon: Icons.directions_car_filled_outlined, categoryId: 'economico'),
   VehicleService(id: 'reserve', label: 'Reservar', icon: Icons.event_outlined),
-  VehicleService(id: 'comfort', label: 'Conforto', icon: Icons.airline_seat_recline_normal_outlined, categoryId: 'comfort'),
-  VehicleService(id: 'xl', label: 'BC XL', icon: Icons.airport_shuttle_outlined, categoryId: 'xl'),
+  VehicleService(id: 'comfort', label: 'Comfort', icon: Icons.airline_seat_recline_normal_outlined, categoryId: 'comfort'),
+  VehicleService(id: 'suv', label: 'SUV', icon: Icons.airport_shuttle_outlined, categoryId: 'suv'),
 ];
 
 const accountMenuItems = [

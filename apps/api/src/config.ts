@@ -13,7 +13,8 @@ function resolveDatabaseUrl(): string | undefined {
   if (!password) return undefined;
 
   const projectRef = process.env.SUPABASE_PROJECT_REF ?? 'scpwlhfqlfkvudkkzvaf';
-  const host = process.env.SUPABASE_DB_HOST ?? `db.${projectRef}.supabase.co`;
+  const hostRaw = process.env.SUPABASE_DB_HOST ?? `db.${projectRef}.supabase.co`;
+  const host = hostRaw.includes(':') && !hostRaw.startsWith('[') ? `[${hostRaw}]` : hostRaw;
   const port = process.env.SUPABASE_DB_PORT ?? '5432';
   const user = process.env.SUPABASE_DB_USER ?? 'postgres';
   const database = process.env.SUPABASE_DB_NAME ?? 'postgres';

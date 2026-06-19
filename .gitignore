@@ -1,11 +1,15 @@
 # Dependencies
 node_modules/
 
-# Environment
+# Environment — nunca commitar .env com secrets
 .env
+.env.local
+.env.*.local
 apps/api/.env
 apps/passenger/.env
 apps/driver/.env
+!.env.example
+!**/.env.example
 
 # OS
 .DS_Store

@@ -13,6 +13,7 @@ import 'account/wallet_screen.dart';
 import 'activity/activity_filter_sheet.dart';
 import 'activity/trip_detail_screen.dart';
 import 'choose_ride_screen.dart';
+import 'confirm_pickup_screen.dart';
 import 'payment/payment_methods_screen.dart';
 import 'plan_trip_screen.dart';
 import 'ride/ride_requested_screen.dart';
@@ -34,13 +35,44 @@ class PassengerRoutes {
     );
   }
 
-  static void openChooseRide(
+  static void openConfirmPickup(
     BuildContext context, {
     required PlaceItem destination,
     String origin = defaultOrigin,
     String? preselectedCategoryId,
     bool scheduled = false,
   }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ConfirmPickupScreen(
+          origin: origin,
+          destination: destination.name,
+          destinationAddress: destination.address,
+          preselectedCategoryId: preselectedCategoryId,
+          scheduled: scheduled,
+        ),
+      ),
+    );
+  }
+
+  static void openChooseRide(
+    BuildContext context, {
+    required PlaceItem destination,
+    String origin = defaultOrigin,
+    String? preselectedCategoryId,
+    bool scheduled = false,
+    bool skipPickupConfirm = false,
+  }) {
+    if (!skipPickupConfirm) {
+      openConfirmPickup(
+        context,
+        destination: destination,
+        origin: origin,
+        preselectedCategoryId: preselectedCategoryId,
+        scheduled: scheduled,
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChooseRideScreen(
@@ -59,6 +91,7 @@ class PassengerRoutes {
       context,
       origin: trip.origin,
       destination: PlaceItem(name: trip.destination, address: trip.address),
+      skipPickupConfirm: true,
     );
   }
 

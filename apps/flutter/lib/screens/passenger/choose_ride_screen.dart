@@ -61,19 +61,32 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
                           child: InkWell(
                             onTap: () => PassengerRoutes.openPlanTrip(context, destination: widget.destination),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999)),
-                              child: Row(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.place_outlined, size: 18, color: BcColors.gray),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      widget.destination,
-                                      style: const TextStyle(fontWeight: FontWeight.w600),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.place_outlined, size: 14, color: BcColors.gray),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          widget.origin,
+                                          style: PassengerTheme.caption.copyWith(fontSize: 12),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.destination,
+                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
                               ),

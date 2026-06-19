@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../theme/passenger_theme.dart';
 import '../login_screen.dart';
 import 'passenger_routes.dart';
+import 'widgets/passenger_sheets.dart';
 
 class PassengerAccountTab extends StatelessWidget {
   const PassengerAccountTab({super.key});
@@ -67,7 +68,7 @@ class PassengerAccountTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _ProfileSelector(),
+          const _ProfileSelector(),
           const SizedBox(height: 20),
           const _QuickGrid(),
           const SizedBox(height: 20),
@@ -103,22 +104,34 @@ class PassengerAccountTab extends StatelessWidget {
   }
 }
 
-class _ProfileSelector extends StatelessWidget {
+class _ProfileSelector extends StatefulWidget {
+  const _ProfileSelector();
+
+  @override
+  State<_ProfileSelector> createState() => _ProfileSelectorState();
+}
+
+class _ProfileSelectorState extends State<_ProfileSelector> {
+  String _profile = 'Pessoal';
+
   @override
   Widget build(BuildContext context) {
     return Material(
       color: BcColors.grayLight,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () => PassengerRoutes.openPaymentMethods(context),
+        onTap: () async {
+          final result = await showChangeProfileSheet(context, _profile);
+          if (result != null) setState(() => _profile = result);
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              const Icon(Icons.person_outline),
+              Icon(_profile == 'Empresarial' ? Icons.work_outline : Icons.person_outline),
               const SizedBox(width: 10),
-              const Expanded(child: Text('Pessoal', style: TextStyle(fontWeight: FontWeight.w600))),
+              Expanded(child: Text(_profile, style: const TextStyle(fontWeight: FontWeight.w600))),
               const Icon(Icons.expand_more, color: BcColors.gray),
             ],
           ),

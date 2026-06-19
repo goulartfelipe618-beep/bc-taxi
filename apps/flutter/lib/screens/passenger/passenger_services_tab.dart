@@ -7,134 +7,81 @@ import 'passenger_routes.dart';
 class PassengerServicesTab extends StatelessWidget {
   const PassengerServicesTab({super.key});
 
-  void _openCategory(BuildContext context, RideCategoryOption category) {
-    PassengerRoutes.openPlanTrip(context, preselectedCategoryId: category.id);
+  void _onService(BuildContext context, VehicleService service) {
+    switch (service.id) {
+      case 'reserve':
+        PassengerRoutes.openSchedule(context);
+      case 'travel':
+        PassengerRoutes.openPlanTrip(context);
+      default:
+        PassengerRoutes.openPlanTrip(context, preselectedCategoryId: service.categoryId);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final primary = rideCategories.take(3).toList();
-
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text('Serviços', style: PassengerTheme.titleLarge),
           const SizedBox(height: 8),
-          Text('Vá onde quiser com veículos BC Taxi', style: PassengerTheme.caption),
+          Text('Vá onde quiser com veículos BC Taxi', style: PassengerTheme.titleMedium.copyWith(fontSize: 15)),
           const SizedBox(height: 24),
           Row(
-            children: [
-              Expanded(child: _LargeServiceCard(category: primary[0], onTap: () => _openCategory(context, primary[0]))),
-              const SizedBox(width: 10),
-              Expanded(child: _LargeServiceCard(category: primary[1], onTap: () => _openCategory(context, primary[1]))),
-            ],
+            children: serviceGridPrimary
+                .map(
+                  (s) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: s != serviceGridPrimary.last ? 10 : 0),
+                      child: _ServiceTile(service: s, large: true, onTap: () => _onService(context, s)),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
           const SizedBox(height: 10),
           Row(
-            children: [
-              Expanded(child: _LargeServiceCard(category: primary[2], onTap: () => _openCategory(context, primary[2]))),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Material(
-                  color: BcColors.grayLight,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: () => PassengerRoutes.openSchedule(context),
-                    borderRadius: BorderRadius.circular(12),
-                    child: const SizedBox(
-                      height: 120,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.event_outlined, size: 36),
-                          SizedBox(height: 8),
-                          Text('Reservar', style: TextStyle(fontWeight: FontWeight.w700)),
-                        ],
-                      ),
+            children: serviceGridSecondary
+                .map(
+                  (s) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: s != serviceGridSecondary.last ? 10 : 0),
+                      child: _ServiceTile(service: s, large: false, onTap: () => _onService(context, s)),
                     ),
                   ),
-                ),
-              ),
-            ],
+                )
+                .toList(),
           ),
-          const SizedBox(height: 24),
-          Text('Todas as categorias', style: PassengerTheme.titleMedium),
-          const SizedBox(height: 12),
-          ...rideCategories.map((r) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Material(
-                color: BcColors.grayLight,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: () => _openCategory(context, r),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                          child: const Icon(Icons.directions_car_filled_outlined, size: 32),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(r.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                                  const SizedBox(width: 6),
-                                  Icon(Icons.person_outline, size: 14, color: BcColors.gray),
-                                  Text(' ${r.capacity}', style: PassengerTheme.caption),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(r.etaLabel, style: PassengerTheme.caption),
-                              if (r.description != null) Text(r.description!, style: PassengerTheme.caption),
-                              if (r.badge != null) ...[
-                                const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: (r.badgeIsGreen ? BcColors.green : BcColors.blue).withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    r.badge!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: r.badgeIsGreen ? BcColors.green : BcColors.blue,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Text(r.priceLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                      ],
-                    ),
-                  ),
-                ),
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: () => PassengerRoutes.openPlanTrip(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: BcColors.blue,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
-            );
-          }),
+              icon: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                child: const Icon(Icons.arrow_forward, size: 18),
+              ),
+              label: const Text('A procurar', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _LargeServiceCard extends StatelessWidget {
-  const _LargeServiceCard({required this.category, required this.onTap});
+class _ServiceTile extends StatelessWidget {
+  const _ServiceTile({required this.service, required this.large, required this.onTap});
 
-  final RideCategoryOption category;
+  final VehicleService service;
+  final bool large;
   final VoidCallback onTap;
 
   @override
@@ -146,14 +93,13 @@ class _LargeServiceCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
-          height: 120,
+          height: large ? 118 : 100,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.directions_car_filled_outlined, size: 36),
-              const SizedBox(height: 8),
-              Text(category.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(category.priceLabel, style: PassengerTheme.caption),
+              Icon(service.icon, size: large ? 38 : 30),
+              const SizedBox(height: 10),
+              Text(service.label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: large ? 14 : 13), textAlign: TextAlign.center),
             ],
           ),
         ),

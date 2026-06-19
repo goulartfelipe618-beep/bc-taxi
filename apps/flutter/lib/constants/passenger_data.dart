@@ -34,6 +34,13 @@ class RideCategoryOption {
   final String? description;
 }
 
+class PickupSpot {
+  const PickupSpot({required this.label, required this.subtitle});
+
+  final String label;
+  final String subtitle;
+}
+
 class TripActivityItem {
   const TripActivityItem({
     required this.destination,
@@ -44,6 +51,7 @@ class TripActivityItem {
     this.category = 'BC Taxi',
     this.paymentMethod = 'PIX',
     this.driverName,
+    this.metaLabel,
     this.failed = false,
     this.featured = false,
   });
@@ -56,8 +64,11 @@ class TripActivityItem {
   final String category;
   final String paymentMethod;
   final String? driverName;
+  final String? metaLabel;
   final bool failed;
   final bool featured;
+
+  String get displayTitle => featured ? '$origin - $address' : destination;
 }
 
 class VehicleService {
@@ -170,6 +181,12 @@ const mockUser = MockUser(
 
 const defaultOrigin = 'Rua Pedro Pinto Felipe, 87';
 
+const pickupSpots = [
+  PickupSpot(label: 'Rua Pedro Pinto Felipe - Lugar n.º1', subtitle: 'Perto de Rua Pedro Pinto Felipe, 87'),
+  PickupSpot(label: 'Rua Pedro Pinto Felipe - Lugar n.º2', subtitle: 'Perto de Rua Pedro Pinto Felipe, 87'),
+  PickupSpot(label: 'Rua Pedro Pinto Felipe - Lugar n.º3', subtitle: 'Entrada lateral do edifício'),
+];
+
 const recentPlaces = [
   PlaceItem(
     name: 'Hotel Blumenau',
@@ -234,10 +251,11 @@ const rideCategories = [
 const pastTrips = [
   TripActivityItem(
     destination: 'Hotel Blumenau',
-    address: 'R. Mil e Um, 129 - Da Barra',
+    address: 'Da Barra',
     dateLabel: '19/06 · 04:45',
     priceLabel: 'R\$ 14,58',
     driverName: 'Carlos M.',
+    metaLabel: '2 motoristas',
     featured: true,
   ),
   TripActivityItem(
@@ -246,6 +264,13 @@ const pastTrips = [
     dateLabel: '19/06 · 02:38',
     priceLabel: 'R\$ 9,99',
     driverName: 'Ana P.',
+  ),
+  TripActivityItem(
+    destination: 'Edifício Italian Residence',
+    address: 'Av. Brasil, 800 - Centro',
+    dateLabel: '18/06 · 21:15',
+    priceLabel: 'R\$ 11,20',
+    driverName: 'Marcos T.',
   ),
   TripActivityItem(
     destination: 'Shopping Atlântico',
@@ -261,6 +286,17 @@ const pastTrips = [
     priceLabel: 'R\$ 0,00',
     failed: true,
   ),
+];
+
+const serviceGridPrimary = [
+  VehicleService(id: 'travel', label: 'Viajar', icon: Icons.directions_car_filled_outlined, categoryId: 'economy'),
+  VehicleService(id: 'comfort', label: 'Conforto', icon: Icons.airline_seat_recline_normal_outlined, categoryId: 'comfort'),
+  VehicleService(id: 'xl', label: 'BC XL', icon: Icons.airport_shuttle_outlined, categoryId: 'xl'),
+];
+
+const serviceGridSecondary = [
+  VehicleService(id: 'reserve', label: 'Reservar', icon: Icons.event_outlined),
+  VehicleService(id: 'wait_save', label: 'Espere e economize', icon: Icons.schedule_outlined, categoryId: 'wait_save'),
 ];
 
 const vehicleServices = [

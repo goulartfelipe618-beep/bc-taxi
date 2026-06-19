@@ -18,7 +18,7 @@ export const pool = config.useMemoryDb
 export async function migrate() {
   if (config.useMemoryDb) return;
   const schemaDir = join(__dirname, '../../../database');
-  for (const file of ['schema.sql', 'schema_operational.sql']) {
+  for (const file of ['schema.sql', 'schema_operational.sql', 'schema_match.sql']) {
     const schemaPath = join(schemaDir, file);
     const sql = readFileSync(schemaPath, 'utf8');
     await pool.query(sql);

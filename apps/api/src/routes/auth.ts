@@ -59,7 +59,11 @@ authRouter.post('/register', async (req, res) => {
 
     const user = result.rows[0];
     if (role === 'driver') {
-      await pool.query('INSERT INTO drivers (id, user_id) VALUES (gen_random_uuid(), $1)', [user.id]);
+      await pool.query(
+        `INSERT INTO drivers (user_id, enabled_categories) VALUES ($1, ARRAY['economico','comfort'])
+         ON CONFLICT (user_id) DO NOTHING`,
+        [user.id],
+      );
     }
 
     res.status(201).json(authResponse(user));

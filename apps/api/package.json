@@ -10,7 +10,8 @@
     "test:match": "tsx scripts/test-match.ts",
     "test:lifecycle": "tsx scripts/test-lifecycle.ts",
     "test:flow": "tsx scripts/test-flow.ts",
-    "test:layer2": "tsx scripts/test-layer2.ts"
+    "test:layer2": "tsx scripts/test-layer2.ts",
+    "test:mapbox": "tsx scripts/test-mapbox.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

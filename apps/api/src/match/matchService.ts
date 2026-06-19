@@ -329,8 +329,12 @@ export async function getDriverPendingOffers(driverId: string) {
 export async function cancelRide(rideId: string, passengerId: string, reason?: string) {
   const ride = await getRide(rideId);
   if (!ride || ride.passengerId !== passengerId) return null;
+  const cancellable = ['REQUESTED', 'OFFERING', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED'];
+  if (!cancellable.includes(ride.status)) return null;
+
   if (useMemory()) {
     await memoryMatchStore.expirePendingOffersForRide(rideId);
+    if (ride.driverId) await memoryMatchStore.releaseDriver(ride.driverId);
     return memoryMatchStore.updateRideStatus(rideId, 'CANCELLED', { cancelReason: reason });
   }
   await cancelRidePg(rideId, passengerId, reason);

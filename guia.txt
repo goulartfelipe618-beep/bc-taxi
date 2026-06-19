@@ -1,0 +1,912 @@
+Categorias
+
+Moto
+Requisitos do motorista: CNH com observação de atividade remunerada, idade mínima 21 anos, reputação mínima 4.60, taxa de cancelamento máxima 12%, aprovação em treinamento de condução defensiva para duas rodas.
+Requisitos do veículo: motocicleta entre 125cc e 300cc, ano mínimo móvel de 10 anos, licenciamento vigente, baú opcional homologado para pequenas entregas, vedado uso para mais de 1 passageiro.
+Regras de aceitação: passageiro sem bagagem volumosa, origem e destino fora de áreas com restrição municipal para mototáxi, corrida bloqueada sob chuva forte se o município tiver política de suspensão operacional.
+Tarifa: base_category_multiplier = 0.72, distance_rate_multiplier = 0.78, time_rate_multiplier = 0.74, minimum_fare_multiplier = 0.70.
+Passageiros: máximo 1.
+Bagagens: mochila, bolsa pequena e pequenos objetos; proibida mala média, mala grande, animal sem caixa apropriada.
+Multiplicadores específicos: weather_risk_multiplier = 1.05 em chuva leve, 1.15 em chuva moderada, bloqueio opcional regulatório em chuva forte, airport_pickup_multiplier = 1.00.
+Econômico
+Requisitos do motorista: CNH válida com EAR, reputação mínima 4.50, aceitação mínima 45%, cancelamento máximo 15%.
+Requisitos do veículo: hatch ou sedã compacto, 4 portas, ar-condicionado funcional, ano mínimo móvel 12 anos, no mínimo 4 lugares para passageiros.
+Regras de aceitação: categoria padrão para distribuição primária, aceita corrida imediata e agendada, aceita bagagem normal.
+Tarifa: base_category_multiplier = 1.00, distance_rate_multiplier = 1.00, time_rate_multiplier = 1.00, minimum_fare_multiplier = 1.00.
+Passageiros: máximo 4.
+Bagagens: até 1 mala média ou 2 pequenas, sujeito à capacidade de porta-malas.
+Multiplicadores específicos: shared_penalty = -0.08 quando usado como fallback para compartilhado indisponível, corporate_discount_eligibility = false.
+Comfort
+Requisitos do motorista: reputação mínima 4.75, mínimo 300 corridas concluídas, cancelamento máximo 10%, veículo aprovado em inspeção interna de conforto.
+Requisitos do veículo: sedã, hatch premium ou crossover leve, ar-condicionado, interior conservado, ano mínimo móvel 8 anos, espaço traseiro ampliado.
+Regras de aceitação: somente motoristas elegíveis, bloqueio automático para veículo com nota de conforto abaixo do mínimo, exige padrão visual e limpeza superiores.
+Tarifa: base_category_multiplier = 1.24, distance_rate_multiplier = 1.20, time_rate_multiplier = 1.18, minimum_fare_multiplier = 1.22.
+Passageiros: máximo 4.
+Bagagens: até 2 malas médias ou 1 grande + 1 pequena.
+Multiplicadores específicos: service_quality_bonus = 1.03, airport_pickup_multiplier = 1.08.
+Executivo
+Requisitos do motorista: reputação mínima 4.82, mínimo 700 corridas, taxa de aceitação mínima 55%, treinamento de atendimento executivo.
+Requisitos do veículo: sedã médio ou superior, interior premium, ar-condicionado dual-zone preferencial, ano mínimo móvel 7 anos, cor neutra preferencial.
+Regras de aceitação: prioridade para viagens corporativas e aeroportuárias, validação mais rígida de conservação, exclusão se houver reclamações recorrentes de cortesia ou apresentação.
+Tarifa: base_category_multiplier = 1.45, distance_rate_multiplier = 1.38, time_rate_multiplier = 1.34, minimum_fare_multiplier = 1.42.
+Passageiros: máximo 4.
+Bagagens: até 2 malas grandes ou 3 médias.
+Multiplicadores específicos: airport_pickup_multiplier = 1.12, corporate_priority_bonus = 1.05.
+Black
+Requisitos do motorista: reputação mínima 4.88, mínimo 1200 corridas, taxa de cancelamento máxima 8%, dress code opcional conforme praça, treinamento premium.
+Requisitos do veículo: sedã premium preto ou cor homologada, ano mínimo móvel 6 anos, bancos em ótimo estado, ar-condicionado impecável.
+Regras de aceitação: bloqueio por qualquer reprovação de acabamento, aceitação prioritária em clientes de alta reputação e contas corporativas premium.
+Tarifa: base_category_multiplier = 1.82, distance_rate_multiplier = 1.65, time_rate_multiplier = 1.58, minimum_fare_multiplier = 1.75.
+Passageiros: máximo 4.
+Bagagens: até 2 malas grandes.
+Multiplicadores específicos: reputation_priority_bonus = 1.08, airport_pickup_multiplier = 1.15, event_demand_multiplier_cap_bonus = +0.10.
+SUV
+Requisitos do motorista: reputação mínima 4.80, mínimo 500 corridas, cancelamento máximo 10%.
+Requisitos do veículo: SUV ou minivan homologada, ano mínimo móvel 8 anos, capacidade mínima 6 passageiros, porta-malas ampliado.
+Regras de aceitação: selecionada quando passageiros > 4, bagagem volumosa, viagem aeroportuária ou preferência explícita do usuário.
+Tarifa: base_category_multiplier = 1.68, distance_rate_multiplier = 1.50, time_rate_multiplier = 1.42, minimum_fare_multiplier = 1.55.
+Passageiros: máximo 6.
+Bagagens: até 4 malas médias ou 2 grandes + 2 pequenas.
+Multiplicadores específicos: extra_capacity_multiplier = 1.10, airport_pickup_multiplier = 1.14.
+Pet
+Requisitos do motorista: treinamento e aceite explícito para transporte de animais, reputação mínima 4.65, sem incidentes recentes envolvendo higiene ou segurança.
+Requisitos do veículo: capa protetora, kit de limpeza, porta-malas ou espaço traseiro adequado, ano mínimo móvel 10 anos.
+Regras de aceitação: pet deve ser informado na solicitação, animal agressivo sem contenção bloqueia corrida, espécies exóticas exigem regra municipal.
+Tarifa: base_category_multiplier = 1.18, distance_rate_multiplier = 1.10, time_rate_multiplier = 1.08, minimum_fare_multiplier = 1.16.
+Passageiros: máximo 4 incluindo tutor.
+Bagagens: itens do pet liberados, caixa de transporte recomendada, grandes volumes sujeitos à capacidade do veículo.
+Multiplicadores específicos: cleaning_risk_multiplier = 1.06, large_pet_multiplier = 1.10.
+Entrega
+Requisitos do motorista: pode operar com carro ou moto elegível, reputação mínima 4.50, sem histórico recente de perda, extravio ou fraude de entrega.
+Requisitos do veículo: compartimento compatível com o volume aceito, baú homologado para motos quando aplicável, proibição de cargas perigosas.
+Regras de aceitação: sem passageiro embarcado, somente remetente/destinatário, validação de peso/volume e proibição de itens ilícitos, valor declarado opcional com cobertura adicional.
+Tarifa: base_category_multiplier = 0.96, distance_rate_multiplier = 1.02, time_rate_multiplier = 0.82, minimum_fare_multiplier = 0.92.
+Passageiros: 0.
+Bagagens: modelado como pacote; peso máximo por veículo e categoria operacional.
+Multiplicadores específicos: fragile_item_multiplier = 1.08, priority_delivery_multiplier = 1.18, insurance_declared_value_fee separado.
+Aeroporto
+Requisitos do motorista: reputação mínima 4.70, mínimo 250 corridas, conhecimento de bolsões e regras aeroportuárias, treinamento de retirada e embarque.
+Requisitos do veículo: Econômico, Comfort, Executivo, Black ou SUV elegível; porta-malas funcional e documentação regular para acesso permitido.
+Regras de aceitação: fila virtual georreferenciada, regras específicas de pickup por terminal, janela máxima de espera operacional, cobrança de taxa aeroportuária quando houver.
+Tarifa: base_category_multiplier = 1.22 sobre a categoria-base escolhida, airport_fee adicionada, distance_rate_multiplier herdado da categoria.
+Passageiros: herdado da categoria-base.
+Bagagens: reforço de capacidade conforme tipo de viagem.
+Multiplicadores específicos: terminal_congestion_multiplier = 1.05 a 1.18, airport_queue_bonus_driver = 1.04.
+Corporativo
+Requisitos do motorista: reputação mínima 4.78, cancelamento máximo 9%, histórico fiscal regular, aceite de faturamento B2B.
+Requisitos do veículo: Comfort, Executivo, Black ou Econômico homologado por política da empresa contratante.
+Regras de aceitação: centro de custo obrigatório quando configurado, política de horários, teto por corrida, bloqueio de categorias não autorizadas, faturamento pós-processado para empresa mas sem crédito operacional ao passageiro.
+Tarifa: segue categoria-base com corporate_service_fee contratual, descontos por volume podem incidir na plataforma e não no ganho bruto do motorista.
+Passageiros: herdado da categoria-base.
+Bagagens: herdado da categoria-base.
+Multiplicadores específicos: sla_priority_multiplier = 1.06, driver_priority_bonus = 1.03, corporate_discount_factor = 0.90 a 0.98 conforme contrato.
+Van
+Requisitos do motorista: categoria compatível na CNH, EAR, reputação mínima 4.75, treinamento em transporte coletivo leve.
+Requisitos do veículo: van homologada, vistoria específica, cintos para todos os assentos, acessibilidade mínima conforme regulamentação local.
+Regras de aceitação: exige origem/destino compatíveis com via de acesso, peso de bagagem controlado, viagens de grupo ou shuttle.
+Tarifa: base_category_multiplier = 2.20, distance_rate_multiplier = 1.88, time_rate_multiplier = 1.72, minimum_fare_multiplier = 2.05.
+Passageiros: máximo 12.
+Bagagens: até 1 mala média por passageiro ou regra contratual.
+Multiplicadores específicos: group_coordination_multiplier = 1.06, airport_shuttle_multiplier = 1.10.
+Micro-ônibus
+Requisitos do motorista: habilitação compatível, certificações locais, reputação mínima 4.80, treinamento operacional coletivo.
+Requisitos do veículo: micro-ônibus com documentação específica, rastreamento e vistoria reforçada, assentos regulamentares e seguro ampliado.
+Regras de aceitação: agendamento preferencial, bloqueio para corrida imediata em praças sem operação dedicada, usado para fretamento leve e transfer.
+Tarifa: base_category_multiplier = 3.10, distance_rate_multiplier = 2.35, time_rate_multiplier = 2.10, minimum_fare_multiplier = 2.90.
+Passageiros: máximo 24.
+Bagagens: conforme compartimento; regra por contrato ou rota.
+Multiplicadores específicos: reservation_multiplier = 1.08, large_group_multiplier = 1.12.
+Transporte Compartilhado
+Requisitos do motorista: reputação mínima 4.68, aceitação mínima 50%, histórico de desvios e atrasos abaixo do percentil de risco.
+Requisitos do veículo: Econômico ou Comfort homologado, mínimo 4 assentos operacionais e bom estado.
+Regras de aceitação: rota com pares compatíveis, limite de desvio por passageiro, janela máxima de espera e embarque adicional, bloqueado para passageiros com baixa reputação ou corrida sensível.
+Tarifa: base_category_multiplier = 0.84, distance_rate_multiplier = 0.86, time_rate_multiplier = 0.92, minimum_fare_multiplier = 0.80.
+Passageiros: até 2 reservas independentes por viagem em veículos de passeio, respeitando assentos e bagagens.
+Bagagens: pequenas e médias leves; malas grandes bloqueiam compartilhamento.
+Multiplicadores específicos: detour_discount_factor = -0.05 a -0.18, occupancy_gain_bonus_driver = 1.04 por passageiro adicional.
+Transporte Adaptado (PCD)
+Requisitos do motorista: treinamento específico em atendimento inclusivo, reputação mínima 4.75, certificação operacional quando exigida por legislação local.
+Requisitos do veículo: adaptação homologada para cadeira de rodas ou necessidade informada, rampa/elevador quando aplicável, pontos de fixação, espaço interno apropriado.
+Regras de aceitação: preferência alta na distribuição, bloqueio se o veículo não atender exatamente a necessidade declarada, janela de aproximação maior, tempo de embarque adicional embutido.
+Tarifa: base_category_multiplier = 1.36, distance_rate_multiplier = 1.22, time_rate_multiplier = 1.28, minimum_fare_multiplier = 1.30.
+Passageiros: conforme layout adaptado, normalmente 3 a 5 além do usuário principal.
+Bagagens: cadeira, andador, muletas e itens assistivos não contam como bagagem tarifável.
+Multiplicadores específicos: assistance_time_multiplier = 1.08, priority_match_weight_bonus = 0.10, public_policy_discount_factor configurável por praça.
+Reputação
+
+Modelo Bidirecional
+Cada viagem concluída gera duas avaliações independentes: passenger_rates_driver e driver_rates_passenger.
+Ambas são obrigatórias para fechamento estatístico da viagem, mas não impedem liquidação financeira; expiram para input manual em 7 dias.
+Escala suportada: 1, 2, 3, 4, 5 estrelas.
+Avaliação sem comentário textual é permitida; comentários são opcionais e moderáveis.
+Cada lado pode selecionar tags operacionais padronizadas: pontualidade, cordialidade, direção, limpeza, respeito, segurança, comportamento, localização incorreta, atraso, bagagem, pet, PCD, pagamento, rota.
+Peso Temporal
+Cada avaliação recebe fator temporal W_t = e^(-lambda * d), onde d é o número de dias desde a avaliação.
+Para motoristas: lambda = 0.0025, meia-vida aproximada 277 dias.
+Para passageiros: lambda = 0.0035, meia-vida aproximada 198 dias.
+Avaliações dos últimos 30 dias recebem bônus de atualização freshness_bonus = 1.05.
+Avaliações acima de 365 dias continuam existindo para histórico, mas seu peso efetivo é limitado a 15% do peso total.
+Peso por Confiabilidade
+Viagens concluídas sem incidentes têm W_c = 1.00.
+Viagens com disputa financeira posterior mantêm nota, mas com W_c = 0.75 até fechamento do caso.
+Viagens auditadas por fraude confirmada são excluídas do cálculo reputacional.
+Viagens curtas abaixo de 1.2 km ou 4 min têm W_trip = 0.85.
+Viagens com valor acima do percentil 90 ou longa duração têm W_trip = 1.10.
+Média Ponderada
+Reputação base: R = sum(stars * W_t * W_c * W_trip) / sum(W_t * W_c * W_trip).
+A reputação exibida é arredondada para 2 casas, mas o score operacional usa precisão de 4 casas.
+Aplica-se suavização bayesiana para novos usuários: R_adj = (v/(v+m))*R + (m/(v+m))*C.
+v = quantidade ponderada de avaliações válidas, m = mínimo de confiança, C = média global da praça.
+Para motoristas: m = 50.
+Para passageiros: m = 20.
+Composição Reputacional do Motorista
+65% nota direta do passageiro.
+10% estabilidade operacional baseada em conclusão sem incidente.
+10% pontualidade de chegada ao pickup.
+10% aderência de rota sem desvios anômalos.
+5% qualidade documental e ausência de bloqueios recentes.
+Composição Reputacional do Passageiro
+70% nota direta do motorista.
+10% índice de presença no embarque.
+10% índice de pagamento bem-sucedido.
+5% taxa de cancelamento tardio.
+5% índice de comportamento moderado por denúncias validadas.
+Faixas Operacionais
+Elite: 4.90 a 5.00.
+Premium: 4.80 a 4.89.
+Confiável: 4.60 a 4.79.
+Observação: 4.30 a 4.59.
+Restrito: abaixo de 4.30.
+Regras de Bloqueio
+Motorista abaixo de 4.30 entra em monitoramento.
+Motorista abaixo de 4.10 perde acesso a Comfort, Executivo, Black, Aeroporto e Corporativo.
+Motorista abaixo de 3.90 entra em bloqueio operacional preventivo.
+Passageiro abaixo de 4.10 perde acesso a categorias premium e compartilhado.
+Passageiro abaixo de 3.80 pode exigir pré-autorização de pagamento e janela menor de rematch.
+Benefícios por Reputação
+
+Passageiros
+Elite: prioridade +18% no score de despacho, discount_wallet_factor de até 8%, acesso antecipado a cupons exclusivos, suporte prioritário, tolerância ampliada em pico.
+Premium: prioridade +10%, descontos progressivos até 5%, elegibilidade para upgrades ocasionais em baixa oferta.
+Confiável: operação padrão com elegibilidade a promoções segmentadas.
+Observação: sem descontos automáticos, menor prioridade em horários críticos, restrições em compartilhado e premium podem ser ativadas por praça.
+Restrito: pré-pagamento obrigatório em PIX/cartão, bloqueio de categorias premium, menor tolerância a cancelamentos frequentes.
+Motoristas
+Elite: queue_priority_bonus = +16%, multiplicador de ganho +3% em dinâmicas elegíveis, mais corridas corporativas e aeroportuárias, menor sensibilidade a bloqueios por pequenos desvios estatísticos.
+Premium: queue_priority_bonus = +9%, acesso ampliado a corridas rentáveis, elegibilidade preferencial a categorias premium.
+Confiável: fluxo padrão.
+Observação: redução de exposição a passageiros premium e corridas críticas.
+Restrito: queda de prioridade, perda de categorias superiores, bloqueio progressivo por reincidência.
+Critérios Complementares
+Benefícios nunca superam critérios de segurança, compatibilidade ou pagamento.
+Reputação elevada não permite burlar regras de fraude, cancelamento, autenticação ou documentação.
+Cupons de alta reputação têm orçamento mensal por praça e limitação por usuário.
+Motoristas com reputação alta mas fraude ou GPS falso confirmado perdem imediatamente todos os benefícios.
+Distribuição de Corridas
+
+Pipeline Operacional
+Estado inicial da corrida: REQUESTED.
+Filtros iniciais: categoria compatível, motorista online, não em corrida, documentação válida, saldo operacional do motorista válido, geofence liberada, bloqueios de relação motorista-passageiro ausentes.
+Busca primária por raio incremental em metros: 800, 1500, 2500, 4000, 6500, 10000.
+Para Moto e Econômico o raio inicial é menor; para Van, Micro-ônibus e PCD é maior.
+A cada janela de distribuição, o sistema produz lote ordenado e oferece em modo sequencial rápido ou paralelo controlado conforme categoria.
+Expansão de raio ocorre após timeout da etapa anterior ou insuficiência de candidatos mínimos.
+Score Matemático
+Score final do candidato:
+
+Plain Text
+
+Score = 0.32*D + 0.18*R + 0.12*A + 0.10*C + 0.08*T + 0.08*E + 0.12*K
+D = score normalizado de distância/ETA.
+R = reputação do motorista normalizada.
+A = taxa de aceitação normalizada.
+C = inverso da taxa de cancelamento normalizado.
+T = tempo online útil normalizado.
+E = experiência normalizada.
+K = compatibilidade de categoria e contexto.
+Normalização dos Fatores
+D = max(0, 1 - ETA_pickup / ETA_max_stage).
+R = clamp((rating - 4.0)/1.0, 0, 1).
+A = clamp((acceptance_rate - 0.35)/0.65, 0, 1).
+C = clamp(1 - cancellation_rate/0.20, 0, 1).
+T = clamp(online_minutes_today / 480, 0, 1).
+E = clamp(log10(completed_rides + 1) / 4, 0, 1).
+K = 1.00 para compatibilidade ideal, 0.85 para fallback permitido, 0.00 para incompatível.
+Ajustes de Score
+Passageiro Elite: +0.06 no score final para motoristas premium elegíveis.
+Motorista Elite: +0.05.
+Corrida corporativa: +0.04 para motoristas homologados.
+Aeroporto com fila virtual: ordem híbrida fila + score, onde o score desempata dentro do bucket da fila.
+PCD: K recebe mínimo 0.95 apenas para veículo devidamente adaptado.
+Compartilhado: adiciona penalidade de desvio estimado DetourPenalty = clamp(extra_eta / 12min, 0, 0.20) subtraída do score.
+Estratégia de Oferta
+Oferta sequencial rápida para premium e corridas críticas: timeout = 6s por motorista.
+Oferta paralela controlada para categorias de volume: lote de 3 a 5 motoristas, primeiro aceite válido vence.
+Expiração de oferta com lock otimista em Redis e persistência em banco.
+Ao aceitar, confirma-se novamente status online, ausência de corrida ativa, posição fresca e bloqueios.
+Se aceite colidir entre dois dispositivos do mesmo motorista, prevalece o primeiro claim confirmado via lock distribuído.
+Escalonamento
+Sem aceite no estágio atual, expande raio e reduz levemente o peso de distância em 5% por estágio após o segundo.
+Se demanda estiver crítica, pode oferecer upgrade de categoria ao passageiro ou fallback descendente permitido por política.
+Se indisponibilidade ultrapassar SLA, sugere categorias alternativas com recalculo imediato.
+Requisições antigas recebem aging_bonus incremental para evitar starvation.
+Cancelamento e Bloqueio de Redistribuição
+
+Regra Passageiro Cancela Motorista
+Quando passageiro cancela após um motorista ter sido associado, cria-se bloqueio passenger_driver_cooldown por 24h.
+Durante esse período, o mesmo motorista não pode reaparecer para o mesmo passageiro em nova distribuição, independentemente de categoria compatível.
+Exceção somente para corrida corporativa com pool dedicado explicitamente configurado.
+Regra Motorista Cancela Passageiro
+Quando motorista cancela após aceite, cria-se bloqueio driver_passenger_redispatch_block com duração mínima de 30 min.
+Em redistribuição imediata da mesma corrida, o passageiro não pode ser ofertado ao mesmo motorista.
+Se houver 2 cancelamentos do mesmo par em 7 dias, o bloqueio sobe para 24h.
+Se houver 4 cancelamentos do mesmo par em 30 dias, o bloqueio sobe para 7 dias e dispara revisão operacional.
+Tabela
+ride_match_blocks
+Colunas: id, passenger_id, driver_id, ride_id, block_type, reason_code, created_at, expires_at, metadata_json.
+block_type: PASSENGER_CANCEL_DRIVER_24H, DRIVER_CANCEL_PASSENGER_REDISPATCH, PAIR_RISK_BLOCK, MANUAL_BLOCK.
+Índices: (passenger_id, driver_id, expires_at), (driver_id, passenger_id, expires_at), (ride_id), parcial em expires_at > now() não pode usar now() em índice; usar limpeza assíncrona e consulta por faixa.
+Algoritmo de Expiração
+Consulta operacional sempre considera expires_at > NOW().
+Job assíncrono marca registros expirados como inativos ou remove dados efêmeros do Redis.
+Redis mantém chave rápida match:block:{passenger}:{driver} com TTL espelhado.
+Banco é a fonte de verdade para auditoria operacional e recomposição de cache.
+Na criação do bloqueio, a escrita é dupla: banco transacional + cache Redis com TTL.
+Autocomplete e Endereços
+
+Capacidades
+Autocomplete com sugestão incremental por prefixo e contexto geográfico.
+Busca inteligente com ranking por proximidade atual, frequência do usuário, popularidade global e relevância textual.
+Favoritos para locais arbitrários.
+Casa e Trabalho como favoritos especiais com unicidade por usuário.
+Recentes derivados de corridas, cotações e buscas confirmadas.
+Reverse geocoding para ajuste fino do ponto selecionado.
+Integração Mapbox
+Endpoint de busca usa Mapbox Search Box API ou Geocoding API.
+Parametrização: proximity, bbox, country=BR, language=pt, types=address,place,poi.
+Session token por jornada de busca para melhorar relevância e custo.
+Ao confirmar uma sugestão, persiste-se mapbox_feature_id, place_name, point, context, accuracy, raw_json.
+Falhas do Mapbox não interrompem corridas já existentes; autocomplete tem fallback local com favoritos, recentes e hotspots.
+Ranking de Sugestões
+Score de sugestão:
+
+Plain Text
+
+SuggestionScore = 0.38*TextRelevance + 0.24*GeoProximity + 0.18*UserAffinity + 0.12*GlobalPopularity + 0.08*Recency
+TextRelevance vem do Mapbox ou motor local.
+GeoProximity usa distância em relação ao ponto atual.
+UserAffinity mede frequência do usuário para o local ou cluster.
+GlobalPopularity usa densidade de pickups/dropoffs históricos.
+Recency privilegia locais usados recentemente.
+Persistência
+user_saved_places: favoritos, casa e trabalho.
+user_place_history: histórico de buscas confirmadas.
+place_cache: cache normalizado de locais do Mapbox por feature_id.
+place_aliases: nomes informais e apelidos criados pelo usuário.
+place_popularity_stats: agregados por região/cluster.
+Rotas
+
+Tipos
+Mais rápida: minimiza ETA com trânsito em tempo real.
+Mais curta: minimiza distância total.
+Econômica: minimiza custo estimado total, considerando pedágio, dinâmica e consumo indireto.
+Menos trânsito: minimiza exposição a congestionamento e incidentes.
+Atributos Exibidos
+distance_m.
+eta_seconds.
+tolls_total_centavos.
+traffic_level_index.
+incident_count.
+route_polyline.
+route_strategy.
+deviation_risk_score.
+Cálculo de Custo de Rota
+RouteCost = alpha*ETA + beta*Distance + gamma*Tolls + delta*TrafficPenalty + epsilon*RiskPenalty
+Para mais rápida: alpha dominante.
+Para mais curta: beta dominante.
+Para econômica: gamma e custo projetado dominantes.
+Para menos trânsito: delta dominante.
+Exibição ao Usuário
+Passageiro vê rota recomendada e alternativas relevantes.
+Motorista vê rota operacional padrão e alertas de desvio.
+Para compartilhado, o app mostra impacto incremental de embarques extras.
+Para corporativo e aeroporto, exibe taxa e pedágio destacados.
+Inteligência de Rota
+
+Seleção Automática
+A melhor rota padrão é a de menor GeneralizedOperationalCost.
+GeneralizedOperationalCost = 0.42*ETA_norm + 0.22*Traffic_norm + 0.14*Toll_norm + 0.12*IncidentRisk_norm + 0.10*Distance_norm.
+Em categorias premium, penaliza-se mudança excessiva de rota.
+Em entrega e compartilhado, penaliza-se fortemente desvio e variação de ETA.
+Recalculo Automático
+Recalcula quando ETA_delta >= 120s, acidente em segmento futuro, fechamento viário, trânsito acima de limiar ou desvio do motorista acima de 250m.
+Janela mínima entre recálculos: 45s para evitar thrashing.
+Se nova rota reduzir ETA em >= 6% ou risco em >= 15%, substitui rota ativa.
+Desvios forçados por pickup incorreto ou bloqueio viário registram motivo no evento operacional.
+Atualização em Tempo Real
+Consumidores de tráfego atualizam cache regional.
+Corridas ativas recebem eventos ROUTE_RECALCULATED.
+Passageiro e motorista visualizam nova rota, novo ETA e motivo do ajuste.
+Se o desvio puder alterar preço final conforme política local, a comunicação deve ser explícita e regulada.
+Clima
+
+Integração
+Serviço meteorológico por API externa com cobertura por coordenada e mosaico regional.
+Cache por célula geográfica e janela de 5 min.
+Classificação: CLEAR, LIGHT_RAIN, MODERATE_RAIN, HEAVY_RAIN, STORM.
+Detecção Regional
+A praça é dividida em regiões operacionais ou grids geográficos.
+Cada região mantém weather_state, intensity_index, updated_at, confidence.
+Corridas usam condição de origem e rota provável; se divergirem, utiliza-se a pior condição ponderada.
+Impacto Operacional
+Chuva leve: pequeno aumento de demanda previsto e leve impacto de ETA.
+Chuva moderada: aumenta demanda, reduz oferta útil, amplia ETA.
+Chuva forte: restringe Moto em praças configuradas, aumenta dinâmica e tempo estimado.
+Tempestade: pode suspender categorias de maior risco, reduzir raio máximo de pickup e elevar controles de segurança.
+Tarifa Dinâmica
+
+Variáveis
+DemandPressure = solicitações por minuto / motoristas disponíveis úteis.
+WeatherPressure = índice de clima por região.
+EventPressure = impacto de eventos previstos ou em andamento.
+AirportPressure = intensidade operacional aeroportuária.
+TrafficPressure = aumento de ETA em relação à mediana da faixa.
+SupplyShortage = déficit entre oferta e demanda elegível.
+TimePressure = peso por horário de pico.
+ConversionPressure = rejeições recentes em distribuição.
+Fórmula
+
+Plain Text
+
+DynamicMultiplierRaw =
+1
++ 0.28*max(0, DemandPressure - 1)
++ 0.16*WeatherPressure
++ 0.12*EventPressure
++ 0.10*AirportPressure
++ 0.14*TrafficPressure
++ 0.14*SupplyShortage
++ 0.04*TimePressure
++ 0.02*ConversionPressure
+Suavização
+DynamicMultiplier = clamp(EMA(DynamicMultiplierRaw), 1.00, CategoryCap)
+EMA por região/categoria com alpha = 0.35.
+Atualização a cada 2 min ou evento crítico.
+Histerese evita oscilações abruptas menores que 0.05.
+Caps por Categoria
+Moto: 1.8x.
+Econômico: 2.2x.
+Comfort: 2.5x.
+Executivo: 2.8x.
+Black: 3.0x.
+SUV: 2.8x.
+Pet: 2.3x.
+Entrega: 2.0x.
+Aeroporto: 2.6x.
+Corporativo: depende de contrato, padrão 2.0x.
+Van: 2.5x.
+Micro-ônibus: 2.3x.
+Compartilhado: 1.8x.
+PCD: 1.9x.
+Proteção contra Abuso
+Dinâmica não pode subir somente por baixa amostra; exige volume mínimo por janela.
+Bloqueio de realimentação indevida causada por manipulação de oferta.
+Região com evidência de GPS falso em massa entra em modo conservador de dinâmica.
+Eventos importados manualmente exigem confirmação temporal e geográfica.
+Aumento acima de 0.3x em menos de 10 min requer validação adicional automática.
+Logs completos de versão do cálculo e fatores de entrada para rastreabilidade.
+Corrida já aceita não recebe nova dinâmica retroativa.
+Dinâmica não pode ultrapassar teto regulatório por município.
+Ganho do Motorista
+
+Modelo de Repasse
+PassengerGross = BaseFare + DistanceFare + TimeFare + RegionFee + DynamicDelta + Tolls + AirportFee + ServiceAddons - Discounts
+DriverGrossBase = DriverBaseFare + DriverDistanceFare + DriverTimeFare + DriverRegionShare + DriverDynamicShare + TollsRepassed + AirportOperationalShare
+Plataforma retém take_rate por categoria e praça.
+Pedágio é repassado integralmente quando confirmado.
+Taxa aeroportuária pode ser integral ou parcialmente repassada conforme contrato local.
+Distribuição da Dinâmica
+Dinâmica positiva é dividida: padrão 75% ao motorista, 25% à plataforma.
+Em categorias premium, o motorista pode receber 78% da dinâmica.
+Em compartilhado, a dinâmica é calculada sobre cada assento vendido e o motorista recebe fração agregada.
+Promoções ao passageiro não reduzem automaticamente o ganho do motorista, exceto campanhas explicitamente cofinanciadas.
+Margem da Plataforma
+take_rate base por categoria configurável por praça.
+Econômico e Moto: 18% a 24%.
+Premium: 20% a 27%.
+Coletivo leve: 15% a 22%.
+Corporativo: pode haver taxa fixa contratual adicional.
+A margem nunca reduz o repasse mínimo operacional definido pela praça.
+Incentivos
+Motoristas Elite podem ter +1% a +3% sobre a parcela da dinâmica.
+Missões e garantias são calculadas fora do fluxo crítico e liquidadas em carteira do motorista.
+Corridas com incidentes ou disputa não liquidam bônus até revisão.
+Pricing Engine
+
+Fórmula Completa
+
+Plain Text
+
+FareBeforeDiscount =
+max(
+    MinimumFare,
+    BaseFare(category, region)
+    + DistanceKm * DistanceRate(category, region)
+    + DurationMin * TimeRate(category, region)
+    + TrafficSurcharge
+    + AirportFee
+    + TollEstimate
+    + AddonsFee
+) * DynamicMultiplier
+Componentes
+BaseFare: valor inicial por categoria e praça.
+DistanceRate: tarifa por km.
+TimeRate: tarifa por minuto estimado.
+TrafficSurcharge: TrafficIndex * TrafficCoefficient(category, region).
+AirportFee: taxa fixa ou variável por terminal.
+TollEstimate: soma de pedágios previstos.
+AddonsFee: pet, prioridade, entrega frágil, assistência PCD quando aplicável.
+MinimumFare: piso por categoria e praça.
+Fórmula Final
+
+Plain Text
+
+FinalPassengerFare =
+FareBeforeDiscount
++ BookingFee
++ RegulatoryFee
+- PassengerDiscounts
+- CorporateSubsidy
+Estimativa do Motorista
+
+Plain Text
+
+EstimatedDriverPayout =
+BaseDriverComponent
++ DistanceKm * DriverDistanceRate
++ DurationMin * DriverTimeRate
++ DriverDynamicShare
++ TollRepass
++ IncentivePreview
+Regras de Integridade
+Preço estimado usa rota primária; preço final pode variar se política local permitir rota/tempo real.
+Variação máxima sem reconsentimento explícito deve ser configurável por praça.
+Categorias premium usam coeficientes maiores e menor tolerância a desvios de conforto.
+Compartilhado calcula preço por assento e rota marginal.
+Corporativo pode ter descontos por contrato sem alterar fórmula base bruta.
+Início da Corrida
+
+Dupla Validação Obrigatória
+A corrida só pode iniciar após validação do código do passageiro e do código do motorista.
+GPS por si só não inicia a corrida.
+O sistema gera ride_start_code_pair no momento do aceite confirmado ou aproximação.
+Cada lado recebe um código curto distinto e efêmero.
+Geração
+Código do passageiro: 6 dígitos.
+Código do motorista: 6 dígitos.
+Gerados com CSPRNG.
+Hash armazenado, nunca o código em claro persistido após emissão.
+Janela de ativação preferencial quando o motorista estiver em raio de pickup configurável.
+Expiração
+Código expira em 15 min após emissão ou 5 min após chegada ao pickup, o que for menor.
+Reemissão limitada a 3 vezes por corrida.
+Reemissão invalida códigos anteriores.
+Validação
+O motorista informa o código do passageiro.
+O passageiro confirma o código do motorista.
+Somente quando ambos estiverem válidos, a corrida muda para IN_PROGRESS.
+Se um lado falhar 5 vezes, ativa-se cooldown de 2 min e sinalização antifraude.
+Modo contingência manual exige suporte e evidência operacional.
+Segurança
+Hash com HMAC-SHA256(code + ride_id + role + secret).
+Logs de tentativa com IP, device_id, timestamp, geolocalização aproximada.
+Não reutilizável em outra corrida.
+Aceite e início exigem ride_version para prevenir race conditions.
+Pagamentos
+
+Métodos Permitidos
+PIX.
+Cartão de Crédito.
+Cartão de Débito.
+Dinheiro.
+Proibições
+Sem pagar depois.
+Sem saldo negativo.
+Sem crédito futuro.
+Sem carteira pós-paga.
+Sem autorização offline sem garantia válida.
+Regras por Método
+PIX: exigência de confirmação ou reserva antes do início, QR dinâmico ou cobrança via PSP, timeout configurável.
+Crédito: pré-autorização obrigatória antes da busca ou antes do aceite, captura no fim da corrida.
+Débito: autorização forte antes do início; por limitações do arranjo, pode operar como débito online com captura imediata ou garantida.
+Dinheiro: permitido apenas para passageiros acima de faixa reputacional mínima e dentro de limites de risco da praça.
+Integridade Financeira
+Corrida não inicia sem método válido e garantido, exceto dinheiro quando permitido.
+Se cartão falhar antes do início, exige troca de método.
+Se captura falhar ao final, passageiro entra em restrição até regularização.
+Dinheiro exige marcação manual/confirmada de pagamento ao final, sujeita a conciliação de risco.
+Regras de Segurança em Pagamento
+Tokenização de cartões.
+PSP externo como custodiante de PAN.
+PIX com conciliação por webhook e idempotência por payment_intent_id.
+Estornos e chargebacks entram em fila de disputa.
+Cupom não cria saldo residual.
+Segurança e Antifraude
+
+Detecção de Fraude
+Device fingerprint por conta e sessão.
+Correlação de documentos, telefone, e-mail, cartão tokenizado, device e padrões de IP.
+Score de risco em tempo real e pós-processado.
+Regras determinísticas no fluxo crítico e IA apenas como suporte analítico não bloqueante.
+Contas Duplicadas
+Matching por CPF/documento, telefone, biometria comportamental, device fingerprint, cartão e padrões de uso.
+Similaridade alta entre múltiplas contas gera fila de revisão.
+Contas com documento compartilhado são bloqueadas preventivamente.
+GPS Falso
+Detecção por velocidade impossível, saltos geométricos, inconsistência entre GPS, rede e sensores, padrões de mock location.
+Score de confiança de localização por dispositivo.
+Motoristas com baixa confiança de localização perdem prioridade ou são bloqueados.
+Corridas Suspeitas
+Origem e destino muito próximos repetidos para geração artificial de corridas.
+Looping de corridas entre pares recorrentes.
+Cancelamentos coordenados para elevar dinâmica.
+Desvios extremos incompatíveis com rota plausível.
+Corridas concluídas rápidas demais ou lentas demais sem justificativa contextual.
+Abuso de Cupons
+Limites por usuário, dispositivo, documento, cartão, geofence e campanha.
+Proibição de combinar cupons incompatíveis.
+A mesma identidade financeira não pode reciclar cupom de aquisição.
+Score de abuso reduz elegibilidade automática a promoções.
+Comportamento Anormal
+Picos de solicitações abortadas.
+Alterações frequentes de método de pagamento.
+Muitas tentativas de validação de início.
+Concentração suspeita por região, evento ou aeroporto.
+Anomalias elevam score de risco e restringem benefícios.
+OpenAI
+
+Princípio Arquitetural
+A IA não participa de aceite, match, pagamento, início, cancelamento, cálculo oficial de preço ou qualquer decisão crítica síncrona.
+Saídas de IA são assíncronas, consultivas e auditáveis.
+Todo fluxo crítico possui fallback totalmente determinístico sem IA.
+Usos Permitidos
+Análise de fraude: sumarização de casos, clusterização de padrões, priorização de revisão humana.
+Previsão de demanda: projeção por região, hora, clima e eventos.
+Previsão de dinâmica: recomendação de pressão futura e ajuste de parâmetros.
+Análise de avaliações: classificação de sentimento, temas recorrentes, toxicidade e risco.
+Atendimento: resposta assistida, roteamento e resumo de tickets.
+Inteligência operacional: insights de abastecimento e performance por praça.
+Arquitetura
+Dados operacionais publicados em tópicos analíticos.
+Feature store separada.
+Processamento batch e near-real-time fora do caminho síncrono.
+Resultados versionados em tabelas de recomendação.
+Consumo opcional por dashboards, antifraude humano e módulos de otimização não críticos.
+Governança
+Prompting com dados minimizados.
+PII mascarada quando possível.
+Todas as inferências armazenam model_version, prompt_hash, input_feature_set_id, confidence.
+Decisões críticas nunca dependem exclusivamente de resposta de IA.
+Banco de Dados
+
+Domínio Operacional
+ride_categories: catálogo de categorias, regras-base e disponibilidade por praça.
+vehicles: veículos dos motoristas.
+vehicle_categories: categorias habilitadas por veículo.
+driver_categories: categorias habilitadas por motorista.
+driver_statistics: agregados operacionais do motorista.
+pricing_regions: regiões geográficas com MultiPolygon SRID 4326 para ST_Contains.
+Expansão de Catálogo
+service_regions: regiões operacionais por cidade/praça.
+service_region_categories: disponibilidade de categorias por região.
+category_requirement_profiles: requisitos mínimos por categoria.
+driver_documents: documentos do motorista com validade.
+vehicle_documents: documentos do veículo com validade.
+driver_training_certifications: treinamentos concluídos.
+driver_operational_flags: flags operacionais e restrições.
+Reputação
+ride_reviews: avaliação por viagem, um registro por avaliador e avaliado.
+review_tags: catálogo de tags.
+ride_review_tag_links: relação N:N.
+driver_reputation_snapshots: snapshots agregados por período.
+passenger_reputation_snapshots: snapshots agregados por período.
+reputation_events: eventos que impactam score.
+Distribuição e Match
+ride_match_attempts: cada tentativa de distribuição com estágio, raio e resultado.
+ride_match_candidates: candidatos gerados por tentativa.
+ride_offers: ofertas enviadas ao motorista.
+ride_offer_responses: aceite, recusa, timeout, erro.
+ride_match_blocks: bloqueios entre passageiro e motorista.
+driver_online_sessions: presença, disponibilidade e métricas da sessão.
+driver_location_history: trilha opcional comprimida para análise.
+Pricing
+pricing_rule_sets: conjunto versionado de regras.
+pricing_rule_versions: vigência e parâmetros.
+pricing_region_assignments: vínculo regra-região-categoria.
+dynamic_pricing_snapshots: multiplicadores por região e categoria.
+event_surge_inputs: eventos externos ou internos de pressão.
+weather_region_snapshots: clima por região.
+airport_operational_fees: taxa por aeroporto/terminal.
+route_toll_catalog: pedágios e custos.
+Rota e Endereço
+place_cache: cache Mapbox.
+user_saved_places: favoritos, casa, trabalho.
+user_place_history: histórico de locais.
+route_requests: requisições de rota cotadas.
+route_alternatives: alternativas retornadas.
+active_route_states: rota ativa de corrida em andamento.
+route_recalculation_events: histórico de recálculo.
+Pagamento
+payment_methods: métodos tokenizados por usuário.
+payment_intents: intenção financeira da corrida.
+payment_transactions: autorizações, capturas, estornos.
+pix_charges: cobranças PIX.
+cash_settlements: liquidação em dinheiro.
+driver_payout_ledger: razão de repasse do motorista.
+platform_fee_ledger: razão de margem e taxas.
+Segurança
+fraud_signals: sinais individuais.
+fraud_cases: casos agregados.
+device_fingerprints: dispositivos observados.
+account_links: similaridades entre contas.
+gps_integrity_events: eventos de integridade de localização.
+coupon_redemption_audit: auditoria de cupons.
+risk_decisions: decisões e scores de risco.
+Realtime
+event_outbox: outbox transacional.
+websocket_connections: presença lógica de conexão.
+redis_delivery_offsets opcional para rastreamento operacional.
+push_notification_log: rastreio de notificações enviadas.
+Entidades e Constraints
+
+ride_categories
+Colunas: id, code, name, description, passenger_limit_min, passenger_limit_max, bag_policy_json, is_shared, is_premium, is_active, created_at, updated_at, deleted_at.
+Constraints: code único, limites não negativos, passenger_limit_max >= passenger_limit_min.
+Índices: unique(code), is_active, deleted_at.
+vehicles
+Colunas: id, driver_id, plate, renavam_hash, make, model, year, color, body_type, seat_count, trunk_capacity_l, wheelchair_accessible, pet_ready, status, created_at, updated_at, deleted_at.
+Constraints: placa única ativa, year em faixa válida, seat_count > 0.
+Índices: driver_id, plate, status, parcial por ativo.
+ride_reviews
+Colunas: id, ride_id, reviewer_user_id, reviewed_user_id, reviewer_role, reviewed_role, stars, comment, sentiment_score, created_at.
+Constraints: stars BETWEEN 1 AND 5, unicidade (ride_id, reviewer_user_id, reviewed_user_id).
+Índices: reviewed_user_id, created_at desc, reviewer_user_id, ride_id.
+ride_match_attempts
+Colunas: id, ride_id, stage_number, search_radius_m, candidate_count, strategy, started_at, ended_at, result_status.
+Constraints: stage_number > 0, search_radius_m > 0.
+Índices: ride_id, started_at, result_status.
+ride_match_candidates
+Colunas: id, attempt_id, driver_id, score, eta_pickup_s, distance_m, reputation_score, acceptance_score, cancellation_score, online_score, experience_score, compatibility_score, rank_position, created_at.
+Constraints: unicidade (attempt_id, driver_id).
+Índices: attempt_id, rank_position, driver_id, score desc.
+ride_offers
+Colunas: id, ride_id, attempt_id, driver_id, offer_batch, offer_type, expires_at, status, created_at, updated_at.
+Constraints: status controlado por enum, expires_at > created_at.
+Índices: driver_id, status, ride_id, expires_at.
+pricing_rule_versions
+Colunas: id, rule_set_id, category_id, region_id, effective_from, effective_to, base_fare_centavos, distance_rate_centavos_km, time_rate_centavos_min, minimum_fare_centavos, booking_fee_centavos, traffic_coefficient, take_rate_bps, driver_dynamic_share_bps, config_json, created_at.
+Constraints: intervalos sem sobreposição por (category_id, region_id).
+Índices: category_id, region_id, effective_from desc, effective_to.
+dynamic_pricing_snapshots
+Colunas: id, region_id, category_id, snapshot_at, demand_pressure, weather_pressure, event_pressure, airport_pressure, traffic_pressure, supply_shortage, time_pressure, conversion_pressure, multiplier_raw, multiplier_effective, version.
+Constraints: unicidade (region_id, category_id, snapshot_at).
+Índices: region_id, category_id, snapshot_at desc.
+pricing_regions
+Colunas: id, city_id, name, priority, polygon, is_active, created_at, updated_at, deleted_at.
+Constraints: ST_IsValid(polygon), ST_SRID(polygon)=4326.
+Índices: GIST(polygon), city_id, priority, is_active.
+user_saved_places
+Colunas: id, user_id, place_type, label, mapbox_feature_id, address_text, point geography(Point,4326), metadata_json, created_at, updated_at, deleted_at.
+Constraints: unicidade parcial de HOME e WORK por usuário.
+Índices: user_id, place_type, GIST(point).
+payment_intents
+Colunas: id, ride_id, user_id, payment_method_type, status, amount_authorized_centavos, amount_captured_centavos, currency, provider, provider_ref, expires_at, created_at, updated_at.
+Constraints: unicidade ride_id por intenção ativa.
+Índices: user_id, ride_id, status, provider_ref.
+Fluxos Operacionais
+
+Solicitação de Corrida
+Passageiro escolhe categoria, origem, destino, método de pagamento e adicionais.
+Pricing calcula estimativa com região, rota e dinâmica.
+Sistema valida restrições de reputação, pagamento e disponibilidade por categoria.
+Ride é criada em REQUESTED.
+Match engine inicia busca e distribuição.
+Aceite
+Oferta enviada ao motorista com SLA.
+Motorista aceita.
+Sistema confirma elegibilidade atual, pagamento, bloqueios, posição fresca, versão da corrida.
+Ride muda para DRIVER_ASSIGNED.
+Passageiro recebe dados do motorista e ETA.
+Chegada
+Motorista entra em geofence de pickup ou marca chegada manualmente com validações.
+Ride muda para DRIVER_ARRIVED.
+Sistema emite códigos de dupla validação.
+Temporizador de espera e regras de cancelamento tardio iniciam.
+Início
+Ambos validam códigos.
+Sistema registra evento RIDE_STARTED.
+Rota ativa é fixada e monitorada.
+Cobrança mantém estado autorizado ou garantido.
+Finalização
+Motorista encerra corrida.
+Sistema calcula rota/tempo real conforme política da praça.
+Captura ou liquidação é executada.
+Avaliações e recibos são liberados.
+Estatísticas e reputação são atualizadas assíncronamente.
+Match Engine no geo-go
+
+DriverRepository
+Responsável por consultar fontes geoespaciais e operacionais.
+Métodos principais: FindNearbyDrivers, GetDriverOperationalState, GetDriverCategoryEligibility, GetPairBlocks, ClaimDriverOffer, ReleaseDriverClaim.
+Fonte primária: PostgreSQL/PostGIS para consistência geográfica e Redis para estado online/rápido.
+Consulta espacial usa ST_DWithin para candidatos no raio e ordenação inicial por ST_DistanceSphere ou ETA cacheado.
+Deve filtrar somente motoristas com localização recente dentro do SLA da categoria.
+CandidateFinder
+Orquestra busca por estágios.
+Recebe pickup_point, category, passenger_context, search_policy.
+Executa filtros de hard constraints antes do score.
+Enriquece cada candidato com features operacionais.
+Produz lista de candidatos com feature_vector completo.
+Aplica exclusão por bloqueios par-a-par, fraude, status, documentação e categoria.
+ScoringEngine
+Recebe candidatos enriquecidos.
+Normaliza features por praça e categoria.
+Calcula score ponderado.
+Aplica bônus e penalidades contextuais.
+Ordena e retorna ranking final.
+Mantém versionamento do modelo de score para rastreabilidade.
+MatchService
+Coordena CandidateFinder, ScoringEngine, OfferDispatcher, TimeoutHandler, ReassignPolicy.
+Cria attempts, armazena candidatos e dispara ofertas.
+Controla escalonamento de raio e estratégia.
+Garante idempotência por ride_id + attempt_stage.
+Interrompe imediatamente quando um aceite válido é confirmado.
+Em caso de falha, registra motivo de desabastecimento.
+Fluxo Detalhado
+Ride recebida do core-node.
+MatchService cria attempt stage 1.
+CandidateFinder consulta DriverRepository.
+ScoringEngine calcula ranking.
+OfferDispatcher cria ofertas e publica no Redis/WebSocket.
+Primeiro aceite vencedor faz claim.
+core-node confirma associação da corrida.
+Se falhar, MatchService avança para próximo estágio.
+Timeout total por categoria controla fallback, upgrade ou indisponibilidade.
+Realtime com Redis Pub/Sub e WebSocket
+
+Topologia
+core-node gerencia autorização, sessão e fan-out para apps.
+geo-go publica eventos de match, localização e rota.
+Redis Pub/Sub ou Streams transporta eventos interserviços.
+WebSocket entrega atualização em tempo real a motorista e passageiro.
+Outbox transacional evita perda de eventos críticos.
+Canais
+ride:{ride_id} para eventos da corrida.
+user:{user_id} para notificações privadas.
+driver:{driver_id} para ofertas e status operacionais.
+region:{region_id}:supply para eventos agregados internos.
+ops:{city_id} para monitoração e painéis.
+Eventos
+DRIVER_LOCATION_UPDATED
+RIDE_REQUESTED
+RIDE_MATCH_ATTEMPT_CREATED
+RIDE_OFFERED
+RIDE_ACCEPTED
+RIDE_REJECTED
+RIDE_MATCH_TIMEOUT
+RIDE_DRIVER_ASSIGNED
+RIDE_DRIVER_ARRIVED
+RIDE_START_CODE_ISSUED
+RIDE_STARTED
+RIDE_ROUTE_RECALCULATED
+RIDE_CANCELLED
+RIDE_COMPLETED
+PAYMENT_AUTHORIZED
+PAYMENT_CAPTURED
+PAYMENT_FAILED
+REVIEW_CREATED
+Contrato de Evento
+Campos mínimos: event_id, event_type, aggregate_type, aggregate_id, occurred_at, producer, schema_version, payload, trace_id.
+Eventos críticos possuem idempotency_key.
+WebSocket usa ack opcional para mensagens críticas de UI.
+Reentrega ao reconectar consulta último checkpoint.
+Localização
+Motorista envia localização frequente.
+geo-go atualiza Redis e persistência seletiva.
+Eventos para passageiro são reduzidos por throttling.
+Algoritmos usam localização integral; UI recebe versão suavizada.
+Anomalias de GPS geram GPS_INTEGRITY_ALERT.
+Regras de Integridade Adicionais
+
+Documentação
+Motorista só opera com CNH, documento do veículo e seguros vigentes.
+Categoria premium exige checklist adicional de veículo.
+PCD exige validação explícita da adaptação.
+Aeroporto exige autorização local quando necessária.
+Disponibilidade
+Sessão online do motorista expira por heartbeat ausente.
+Status busy, paused, offline, restricted.
+Motorista com localização envelhecida é excluído do match.
+Motorista não pode aceitar nova corrida com pagamento pendente de encerramento anterior se política local bloquear.
+Cancelamento
+Cancelamento do passageiro antes do aceite é livre.
+Após aceite, pode gerar taxa conforme tempo/distância de aproximação e regras da praça.
+Cancelamento do motorista após chegada impacta reputação e score de cancelamento.
+Cancelamento por segurança, fraude ou evento crítico pode isentar penalidades.
+Compartilhado
+Match por corredor geográfico e janela temporal.
+Compatibilidade exige baixo desvio incremental para todos os ocupantes.
+Passageiros com reputação baixa ou bagagem incompatível são excluídos.
+Cobrança rateada por rota marginal e SLA de desvio.
+Aeroporto
+Fila virtual baseada em geofence e compliance operacional.
+Motorista entra na fila ao atingir bolsão homologado.
+Ofertas respeitam terminal, categoria e posição de fila.
+Score desempata dentro de buckets próximos, sem violar lógica de fila.
+Corporativo
+Perfis de aprovação por empresa.
+Categorias, horários, regiões e centros de custo configuráveis.
+Faturamento consolidado separado do fluxo individual de corrida.
+Políticas corporativas sobrepõem descontos públicos quando necessário.
+Entrega
+Prova de coleta e entrega opcional por foto ou PIN, fora do fluxo de corrida de passageiros.
+Itens proibidos bloqueados por declaração e regras.
+Seguro opcional por valor declarado.
+Tempo de espera em coleta/entrega tarifado por tabela específica.
+Integrações Externas
+
+Mapbox
+Geocoding, autocomplete, reverse geocoding, rota e matriz de tempo/distância.
+Cache agressivo para reduzir custo.
+Session tokens por jornada.
+Feature IDs persistidos.
+Meteorologia
+API com cobertura granular por coordenada.
+Cache por célula e fallback regional.
+Normalização interna para categorias operacionais.
+PSP de Pagamentos
+Tokenização, autenticação, autorização, captura, PIX, estorno, webhook.
+Idempotência por intenção e transação.
+Reprocessamento resiliente por fila.
+Eventos Externos
+Agenda de shows, partidas e grandes eventos por integração externa ou backoffice.
+Região, horário, intensidade esperada, categoria impactada.
+Alimenta dinâmica e previsão, não o cálculo determinístico bruto sem validação.
+Parâmetros Operacionais Configuráveis
+
+Por Cidade/Região/Categoria
+base_fare, distance_rate, time_rate, minimum_fare.
+dynamic_cap.
+driver_dynamic_share_bps.
+search_radius_stages.
+offer_timeout_seconds.
+arrival_wait_policy.
+cancellation_fee_policy.
+cash_allowed_min_reputation.
+premium_min_reputation.
+pcd_priority_rules.
+airport_fee_rules.
+Por Segmento de Usuário
+prioridade por reputação.
+política de descontos.
+restrições antifraude.
+formas de pagamento habilitadas.
+elegibilidade a premium, compartilhado e promoções.
+Governança Técnica
+
+Versionamento
+Toda regra de score, pricing e reputação deve ser versionada.
+Corrida persiste a versão das regras usadas na cotação, match e liquidação.
+Mudanças futuras não podem reescrever a base histórica.
+Logs de decisão devem ser consultáveis por ride_id.
+Observabilidade
+Métricas de request_to_assign_time, accept_rate, cancel_rate, pickup_eta, pricing_conversion, payment_failure_rate.
+Tracing entre core-node, geo-go, Redis e PSP.
+Dashboards por cidade, região, categoria e faixa reputacional.
+Alertas para degradação de match, rota, pagamentos, WebSocket e fraude.
+Consistência
+Banco relacional é fonte de verdade de entidades críticas.
+Redis é cache e coordenador efêmero.
+Outbox garante publicação confiável.
+Jobs assíncronos recalculam agregados sem impactar fluxos síncronos.
+Locks distribuídos usados apenas onde houver competição real de aceite ou claim.

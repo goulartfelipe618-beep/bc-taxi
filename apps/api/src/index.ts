@@ -4,6 +4,8 @@ import { config } from './config.js';
 import { migrate, pool } from './db.js';
 import { authRouter } from './routes/auth.js';
 import { categoriesRouter, configRouter, quotesRouter } from './routes/catalog.js';
+import { placesRouter, routesRouter } from './routes/mapbox.js';
+import { paymentsRouter } from './routes/payments.js';
 import { driverRouter, ridesRouter } from './routes/rides.js';
 
 async function main() {
@@ -26,6 +28,9 @@ async function main() {
   app.use('/v1/categories', categoriesRouter);
   app.use('/v1/quotes', quotesRouter);
   app.use('/v1/config', configRouter);
+  app.use('/v1/places', placesRouter);
+  app.use('/v1/routes', routesRouter);
+  app.use('/v1/payments', paymentsRouter);
   app.use('/v1/rides', ridesRouter);
   app.use('/v1/driver', driverRouter);
 

@@ -122,6 +122,31 @@ export const memoryMatchStore = {
     return ride;
   },
 
+  async updateRideLifecycle(
+    id: string,
+    patch: {
+      status?: RideStatus;
+      arrivedAt?: Date;
+      startedAt?: Date;
+      completedAt?: Date;
+      paymentIntentId?: string;
+    },
+  ) {
+    const ride = rides.get(id);
+    if (!ride) return null;
+    Object.assign(ride, patch, { updatedAt: new Date() });
+    if (patch.status) ride.status = patch.status;
+    rides.set(id, ride);
+    return ride;
+  },
+
+  async releaseDriver(driverId: string) {
+    const driver = drivers.get(driverId);
+    if (!driver) return;
+    driver.activeRideId = undefined;
+    driver.operationalStatus = driver.isOnline ? 'online' : 'offline';
+  },
+
   async incrementRideVersion(id: string) {
     const ride = rides.get(id);
     if (!ride) return null;
@@ -270,7 +295,7 @@ export async function createRidePg(input: RideRequestInput): Promise<RideRecord>
   return mapRideRow(result.rows[0]);
 }
 
-function mapRideRow(row: Record<string, unknown>): RideRecord {
+export function mapRideRow(row: Record<string, unknown>): RideRecord {
   return {
     id: row.id as string,
     passengerId: row.passenger_id as string,
@@ -291,6 +316,12 @@ function mapRideRow(row: Record<string, unknown>): RideRecord {
     estimatedFareCentavos: row.estimated_fare_centavos != null ? Number(row.estimated_fare_centavos) : undefined,
     rideVersion: Number(row.ride_version),
     matchStage: Number(row.match_stage),
+    assignedAt: row.assigned_at ? new Date(row.assigned_at as string) : undefined,
+    arrivedAt: row.arrived_at ? new Date(row.arrived_at as string) : undefined,
+    startedAt: row.started_at ? new Date(row.started_at as string) : undefined,
+    completedAt: row.completed_at ? new Date(row.completed_at as string) : undefined,
+    paymentIntentId: (row.payment_intent_id as string) ?? undefined,
+    cancelReason: (row.cancel_reason as string) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };

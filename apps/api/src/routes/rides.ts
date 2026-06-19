@@ -13,6 +13,20 @@ import {
   rejectOffer,
   startMatching,
 } from '../match/matchService.js';
+import type { RideRecord, RideStatus } from '../match/types.js';
+import { DEMO_PAYMENT_METHOD_IDS } from '../payments/paymentStore.js';
+import {
+  attachIntentToRide,
+  authorizeRidePayment,
+  cancelRidePayment,
+} from '../payments/paymentService.js';
+import {
+  driverCompleteRide,
+  driverMarkArrived,
+  getRideVerification,
+  reissueStartCodesForRide,
+  verifyStartCode,
+} from '../ride/lifecycleService.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 
 const createRideSchema = z.object({
@@ -30,7 +44,33 @@ const createRideSchema = z.object({
   needsWheelchair: z.boolean().optional(),
   distanceKm: z.number().positive().optional(),
   durationMin: z.number().positive().optional(),
+  paymentMethodId: z.string().uuid().optional(),
 });
+
+const verifyCodeSchema = z.object({
+  code: z.string().regex(/^\d{6}$/),
+});
+
+export function statusLabel(status: RideStatus): string {
+  const labels: Record<RideStatus, string> = {
+    REQUESTED: 'Solicitada',
+    OFFERING: 'Buscando motorista',
+    DRIVER_ASSIGNED: 'Motorista a caminho',
+    DRIVER_ARRIVED: 'Motorista no local',
+    IN_PROGRESS: 'Em andamento',
+    COMPLETED: 'Concluída',
+    CANCELLED: 'Cancelada',
+    NO_DRIVERS: 'Sem motoristas',
+  };
+  return labels[status] ?? status;
+}
+
+function toPublicRide(ride: RideRecord) {
+  return {
+    ...ride,
+    statusLabel: statusLabel(ride.status),
+  };
+}
 
 export const ridesRouter = Router();
 
@@ -64,6 +104,22 @@ ridesRouter.post('/', async (req, res) => {
     estimatedFareCentavos = quote.passengerFareCentavos;
   }
 
+  const paymentMethodId = parsed.data.paymentMethodId ?? DEMO_PAYMENT_METHOD_IDS.pix;
+  let paymentIntentId: string | undefined;
+
+  try {
+    const intent = await authorizeRidePayment({
+      userId: req.user!.id,
+      paymentMethodId,
+      amountCentavos: estimatedFareCentavos ?? 5000,
+    });
+    paymentIntentId = intent.id;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao autorizar pagamento';
+    res.status(402).json({ error: message });
+    return;
+  }
+
   const ride = await createRideRequest({
     passengerId: req.user!.id,
     categoryCode: parsed.data.categoryCode,
@@ -81,8 +137,16 @@ ridesRouter.post('/', async (req, res) => {
     estimatedFareCentavos,
   });
 
+  if (paymentIntentId) {
+    await attachIntentToRide(ride.id, paymentIntentId);
+    if (useMemory()) {
+      await memoryMatchStore.updateRideLifecycle(ride.id, { paymentIntentId });
+    }
+  }
+
   const matched = await startMatching(ride.id);
-  res.status(201).json({ ride: matched ?? ride });
+  const finalRide = matched ?? ride;
+  res.status(201).json({ ride: toPublicRide(finalRide), paymentIntentId });
 });
 
 ridesRouter.get('/:id', async (req, res) => {
@@ -95,7 +159,8 @@ ridesRouter.get('/:id', async (req, res) => {
     res.status(403).json({ error: 'Acesso negado' });
     return;
   }
-  res.json({ ride });
+  const verification = await getRideVerification(ride.id);
+  res.json({ ride: toPublicRide(ride), verification });
 });
 
 ridesRouter.post('/:id/cancel', async (req, res) => {
@@ -104,7 +169,96 @@ ridesRouter.post('/:id/cancel', async (req, res) => {
     res.status(404).json({ error: 'Corrida não encontrada ou não cancelável' });
     return;
   }
-  res.json({ ride });
+  await cancelRidePayment(ride.id);
+  res.json({ ride: toPublicRide(ride) });
+});
+
+ridesRouter.post('/:id/arrived', async (req, res) => {
+  if (req.user!.role !== 'driver') {
+    res.status(403).json({ error: 'Somente motoristas' });
+    return;
+  }
+
+  try {
+    const result = await driverMarkArrived(req.params.id, req.user!.id);
+    res.json({
+      ride: toPublicRide(result.ride),
+      verification: result.verification,
+      ...(result.codes ? { codes: result.codes } : {}),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao registrar chegada';
+    res.status(409).json({ error: message });
+  }
+});
+
+ridesRouter.post('/:id/verify-passenger-code', async (req, res) => {
+  if (req.user!.role !== 'driver') {
+    res.status(403).json({ error: 'Somente motoristas validam código do passageiro' });
+    return;
+  }
+
+  const parsed = verifyCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const result = await verifyStartCode(req.params.id, req.user!.id, 'passenger', parsed.data.code);
+  if (!result.ok) {
+    res.status(400).json(result);
+    return;
+  }
+
+  const ride = await getRide(req.params.id);
+  res.json({ ...result, ride: ride ? toPublicRide(ride) : undefined });
+});
+
+ridesRouter.post('/:id/verify-driver-code', async (req, res) => {
+  if (req.user!.role !== 'passenger') {
+    res.status(403).json({ error: 'Somente passageiros validam código do motorista' });
+    return;
+  }
+
+  const parsed = verifyCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const result = await verifyStartCode(req.params.id, req.user!.id, 'driver', parsed.data.code);
+  if (!result.ok) {
+    res.status(400).json(result);
+    return;
+  }
+
+  const ride = await getRide(req.params.id);
+  res.json({ ...result, ride: ride ? toPublicRide(ride) : undefined });
+});
+
+ridesRouter.post('/:id/reissue-codes', async (req, res) => {
+  try {
+    const result = await reissueStartCodesForRide(req.params.id, req.user!.id);
+    res.json(result);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao reemitir códigos';
+    res.status(409).json({ error: message });
+  }
+});
+
+ridesRouter.post('/:id/complete', async (req, res) => {
+  if (req.user!.role !== 'driver') {
+    res.status(403).json({ error: 'Somente motoristas' });
+    return;
+  }
+
+  try {
+    const ride = await driverCompleteRide(req.params.id, req.user!.id);
+    res.json({ ride: toPublicRide(ride) });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao concluir corrida';
+    res.status(409).json({ error: message });
+  }
 });
 
 export const driverRouter = Router();
@@ -159,7 +313,7 @@ driverRouter.get('/offers', async (req, res) => {
   const enriched = await Promise.all(
     offers.map(async (o) => {
       const ride = await getRide(o.rideId);
-      return { offer: o, ride };
+      return { offer: o, ride: ride ? toPublicRide(ride) : null };
     }),
   );
   res.json({ offers: enriched });
@@ -176,7 +330,7 @@ driverRouter.post('/offers/:offerId/accept', async (req, res) => {
     res.status(409).json({ error: 'Oferta indisponível ou expirada' });
     return;
   }
-  res.json({ ride });
+  res.json({ ride: toPublicRide(ride) });
 });
 
 driverRouter.post('/offers/:offerId/reject', async (req, res) => {

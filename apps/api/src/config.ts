@@ -31,4 +31,11 @@ export const config = {
   databaseUrl: databaseUrl ?? '',
   jwtSecret: process.env.JWT_SECRET ?? (useMemoryDb ? 'bc-taxi-dev-secret' : required('JWT_SECRET')),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+  mapboxAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
+  mapboxDefaultCenter: {
+    lat: Number(process.env.MAPBOX_DEFAULT_LAT ?? -26.9194),
+    lng: Number(process.env.MAPBOX_DEFAULT_LNG ?? -49.0661),
+  },
+  rideCodeSecret:
+    process.env.RIDE_CODE_SECRET ?? (useMemoryDb ? 'bc-taxi-ride-code-dev' : required('RIDE_CODE_SECRET')),
 };

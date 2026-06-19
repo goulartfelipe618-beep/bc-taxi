@@ -33,6 +33,10 @@ export interface RideRecord {
   rideVersion: number;
   matchStage: number;
   assignedAt?: Date;
+  arrivedAt?: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  paymentIntentId?: string;
   cancelReason?: string;
   createdAt: Date;
   updatedAt: Date;

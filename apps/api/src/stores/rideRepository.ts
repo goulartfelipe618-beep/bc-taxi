@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
+import { mapRideRow } from './memoryMatchStore.js';
 import type { RideOfferRecord } from '../match/types.js';
 
 function mapOfferRow(row: Record<string, unknown>): RideOfferRecord {
@@ -140,11 +141,70 @@ export async function expirePendingOffersForRidePg(rideId: string) {
 export async function cancelRidePg(rideId: string, passengerId: string, reason?: string) {
   const result = await pool.query(
     `UPDATE rides SET status = 'CANCELLED', cancelled_at = NOW(), cancel_reason = $3, updated_at = NOW()
-     WHERE id = $1 AND passenger_id = $2 AND status IN ('REQUESTED','OFFERING','DRIVER_ASSIGNED')
-     RETURNING id`,
+     WHERE id = $1 AND passenger_id = $2 AND status IN (
+       'REQUESTED','OFFERING','DRIVER_ASSIGNED','DRIVER_ARRIVED'
+     )
+     RETURNING id, driver_id`,
     [rideId, passengerId, reason ?? null],
   );
-  if (result.rowCount) await expirePendingOffersForRidePg(rideId);
+  if (result.rowCount) {
+    await expirePendingOffersForRidePg(rideId);
+    const driverId = result.rows[0]?.driver_id as string | null;
+    if (driverId) await releaseDriverPg(driverId);
+  }
+}
+
+export async function updateRideLifecyclePg(
+  rideId: string,
+  patch: {
+    status?: string;
+    arrivedAt?: Date;
+    startedAt?: Date;
+    completedAt?: Date;
+    paymentIntentId?: string;
+  },
+) {
+  const sets: string[] = ['updated_at = NOW()'];
+  const values: unknown[] = [rideId];
+  let idx = 2;
+
+  if (patch.status) {
+    sets.push(`status = $${idx++}`);
+    values.push(patch.status);
+  }
+  if (patch.arrivedAt) {
+    sets.push(`arrived_at = $${idx++}`);
+    values.push(patch.arrivedAt);
+  }
+  if (patch.startedAt) {
+    sets.push(`started_at = $${idx++}`);
+    values.push(patch.startedAt);
+  }
+  if (patch.completedAt) {
+    sets.push(`completed_at = $${idx++}`);
+    values.push(patch.completedAt);
+  }
+  if (patch.paymentIntentId) {
+    sets.push(`payment_intent_id = $${idx++}`);
+    values.push(patch.paymentIntentId);
+  }
+
+  const result = await pool.query(
+    `UPDATE rides SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+    values,
+  );
+  if (!result.rowCount) return null;
+  return mapRideRow(result.rows[0]);
+}
+
+export async function releaseDriverPg(driverId: string) {
+  await pool.query(
+    `UPDATE drivers SET
+      active_ride_id = NULL,
+      operational_status = CASE WHEN is_online THEN 'online' ELSE 'offline' END
+     WHERE user_id = $1`,
+    [driverId],
+  );
 }
 
 export async function insertOfferResponsePg(offerId: string, response: string) {

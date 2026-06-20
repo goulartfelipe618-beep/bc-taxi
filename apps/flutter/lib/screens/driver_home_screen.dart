@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/driver_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/passenger/ride_review_sheet.dart';
+import 'driver_compliance_screen.dart';
 import 'login_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -259,7 +260,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('BC Taxi Motorista'),
-        actions: [IconButton(icon: const Icon(Icons.logout), onPressed: _logout)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.description_outlined),
+            tooltip: 'Veículo e documentos',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DriverComplianceScreen()),
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+        ],
       ),
       body: IndexedStack(
         index: _tab,

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { pool } from '../db.js';
+import { seedDemoFleetCompliance } from '../fleet/fleetStore.js';
 import type {
   DriverRecord,
   MatchAttemptRecord,
@@ -73,6 +74,10 @@ function seedDemoDrivers() {
       petReady: d.cats.includes('pet'),
       comfortApproved: d.comfort ?? false,
       vehicleType: d.cats.includes('moto') ? 'moto' : 'economico',
+    });
+    seedDemoFleetCompliance(userId, d.cats, {
+      petReady: d.cats.includes('pet'),
+      comfortApproved: d.comfort ?? false,
     });
   }
 }

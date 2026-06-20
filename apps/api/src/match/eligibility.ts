@@ -3,6 +3,7 @@ import { getTier, driverBlockedCategories } from '../domain/reputation.js';
 import { computeMatchScore } from '../domain/match.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { isPairBlocked } from './blockService.js';
+import { isDriverCompliantForCategory } from '../fleet/complianceService.js';
 import type { DriverRecord, PassengerContext, RideRecord, ScoredCandidate } from './types.js';
 
 const LOCATION_SLA_SECONDS = 120;
@@ -91,6 +92,7 @@ export async function filterEligibleDrivers(
     if (distanceM > radiusM) continue;
 
     if (await isPairBlocked(passenger.passengerId, driver.userId)) continue;
+    if (!(await isDriverCompliantForCategory(driver.userId, ride.categoryCode))) continue;
 
     eligible.push(driver);
   }

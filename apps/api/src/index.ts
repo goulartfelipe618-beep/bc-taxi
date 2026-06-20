@@ -12,6 +12,7 @@ import { placesRouter, routesRouter } from './routes/mapbox.js';
 import { paymentsRouter } from './routes/payments.js';
 import { pricingRouter } from './routes/pricing.js';
 import { driverRouter, ridesRouter } from './routes/rides.js';
+import { driverFleetRouter } from './routes/driverFleet.js';
 
 async function main() {
   await migrate();
@@ -44,6 +45,7 @@ async function main() {
   app.use('/v1/payments', paymentsRouter);
   app.use('/v1/rides', ridesRouter);
   app.use('/v1/driver', driverRouter);
+  app.use('/v1/driver/fleet', driverFleetRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Rota não encontrada' });

@@ -9,6 +9,7 @@ import type { RideCategoryCode } from '../domain/types.js';
 import { config } from '../config.js';
 import { pool } from '../db.js';
 import { useMemory } from '../stores/memoryMatchStore.js';
+import { getRegionalWeatherPressure } from '../weather/weatherService.js';
 import { memoryMatchStore } from '../stores/memoryMatchStore.js';
 
 export interface DynamicPricingFactors {
@@ -56,16 +57,31 @@ function hourPressure(): number {
   return 0;
 }
 
-export async function computeLiveFactors(): Promise<DynamicPricingFactors> {
+export async function computeLiveFactors(lat?: number, lng?: number): Promise<DynamicPricingFactors> {
   const openRides = await countOpenRides();
   const onlineDrivers = Math.max(1, await countOnlineDrivers());
   const demandRatio = openRides / onlineDrivers;
   const demandPressure = Math.max(1, Math.min(2.2, 0.85 + demandRatio * 0.35));
   const supplyShortage = Math.max(0, demandRatio - 1) * 0.5;
 
+  let weatherPressure = 0;
+  if (config.weatherApiEnabled) {
+    try {
+      if (lat != null && lng != null) {
+        const { getWeatherAtPoint } = await import('../weather/weatherService.js');
+        const snap = await getWeatherAtPoint(lat, lng, config.defaultServiceRegionId);
+        weatherPressure = snap.weatherPressure;
+      } else {
+        weatherPressure = await getRegionalWeatherPressure(config.defaultServiceRegionId);
+      }
+    } catch {
+      weatherPressure = 0;
+    }
+  }
+
   return {
     demandPressure,
-    weatherPressure: 0,
+    weatherPressure,
     eventPressure: 0,
     airportPressure: 0,
     trafficPressure: Math.min(0.25, supplyShortage * 0.3),
@@ -75,13 +91,32 @@ export async function computeLiveFactors(): Promise<DynamicPricingFactors> {
   };
 }
 
-export async function refreshDynamicPricing(categoryCode: RideCategoryCode, regionId = config.defaultPricingRegionId) {
+export async function refreshDynamicPricing(
+  categoryCode: RideCategoryCode,
+  regionId = config.defaultPricingRegionId,
+  context?: { lat?: number; lng?: number },
+) {
   const category = getCategory(categoryCode);
   if (!category) throw new Error('Categoria inválida');
 
-  const factors = await computeLiveFactors();
+  const factors = await computeLiveFactors(context?.lat, context?.lng);
   const multiplierRaw = computeDynamicMultiplierRaw(factors);
-  const multiplierEffective = clampDynamic(multiplierRaw, category.dynamicCap);
+
+  let emaInput = multiplierRaw;
+  if (!useMemory()) {
+    const { rows } = await pool.query(
+      `SELECT multiplier_raw FROM dynamic_pricing_snapshots
+       WHERE region_id = $1 AND category_code = $2
+       ORDER BY snapshot_at DESC LIMIT 1`,
+      [regionId, categoryCode],
+    );
+    if (rows[0]) {
+      const prev = Number(rows[0].multiplier_raw);
+      emaInput = 0.35 * multiplierRaw + 0.65 * prev;
+    }
+  }
+
+  const multiplierEffective = clampDynamic(emaInput, category.dynamicCap);
 
   if (useMemory()) {
     memorySnapshots.set(snapshotKey(regionId, categoryCode), {
@@ -116,13 +151,17 @@ export async function refreshDynamicPricing(categoryCode: RideCategoryCode, regi
   return { categoryCode, regionId, multiplierEffective, factors };
 }
 
-export async function getDynamicMultiplier(categoryCode: RideCategoryCode, regionId = config.defaultPricingRegionId) {
+export async function getDynamicMultiplier(
+  categoryCode: RideCategoryCode,
+  regionId = config.defaultPricingRegionId,
+  context?: { lat?: number; lng?: number },
+) {
   if (useMemory()) {
     const cached = memorySnapshots.get(snapshotKey(regionId, categoryCode));
     if (cached && Date.now() - cached.at.getTime() < 5 * 60_000) {
       return cached.multiplier;
     }
-    const fresh = await refreshDynamicPricing(categoryCode, regionId);
+    const fresh = await refreshDynamicPricing(categoryCode, regionId, context);
     return fresh.multiplierEffective;
   }
 
@@ -138,7 +177,7 @@ export async function getDynamicMultiplier(categoryCode: RideCategoryCode, regio
     if (age < 5 * 60_000) return Number(rows[0].multiplier_effective);
   }
 
-  const fresh = await refreshDynamicPricing(categoryCode, regionId);
+  const fresh = await refreshDynamicPricing(categoryCode, regionId, context);
   return fresh.multiplierEffective;
 }
 
@@ -146,8 +185,9 @@ export async function quoteWithDynamicPricing(
   categoryCode: RideCategoryCode,
   distanceKm: number,
   durationMin: number,
+  context?: { lat?: number; lng?: number },
 ) {
-  const multiplier = await getDynamicMultiplier(categoryCode);
+  const multiplier = await getDynamicMultiplier(categoryCode, config.defaultPricingRegionId, context);
   return computeQuote(
     { categoryCode, distanceKm, durationMin, dynamicMultiplier: multiplier },
     DEFAULT_PRICING_REGION,

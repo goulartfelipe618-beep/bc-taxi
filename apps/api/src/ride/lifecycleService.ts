@@ -15,6 +15,7 @@ import {
 import type { CodeRole, VerifyCodeResult, VerificationPublic } from './types.js';
 import { emitEvent } from '../realtime/eventBus.js';
 import { recordFraudSignal } from '../fraud/fraudService.js';
+import { bindRouteToRide, getActiveRoute, recalculateActiveRoute, toPublicActiveRoute } from '../route/routeService.js';
 
 async function updateLifecycle(
   rideId: string,
@@ -75,6 +76,11 @@ export async function driverMarkArrived(
     driverId,
     userIds: [ride.passengerId],
   });
+  void emitEvent('RIDE_START_CODE_ISSUED', 'ride', rideId, { driverId }, {
+    rideId,
+    driverId,
+    userIds: [ride.passengerId, driverId],
+  });
   return result;
 }
 
@@ -115,8 +121,19 @@ export async function verifyStartCode(
 
   let started = ride.status === 'IN_PROGRESS';
   if (!started && (await bothCodesVerified(rideId))) {
-    await updateLifecycle(rideId, { status: 'IN_PROGRESS', startedAt: new Date() });
+    const startedAt = new Date();
+    await updateLifecycle(rideId, { status: 'IN_PROGRESS', startedAt });
     started = true;
+
+    void bindRouteToRide({
+      rideId,
+      fromLat: ride.pickupLat,
+      fromLng: ride.pickupLng,
+      toLat: ride.dropoffLat,
+      toLng: ride.dropoffLng,
+      userId: ride.passengerId,
+    }).catch(() => undefined);
+
     void emitEvent('RIDE_STARTED', 'ride', rideId, {}, {
       rideId,
       userIds: [ride.passengerId],
@@ -181,6 +198,49 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
 export async function getRideVerification(rideId: string): Promise<VerificationPublic | null> {
   return getVerificationStatus(rideId);
 }
+
+export async function getRideActiveRoute(rideId: string) {
+  return getActiveRoute(rideId);
+}
+
+export async function recalculateRideRoute(
+  rideId: string,
+  driverId: string,
+  driverLat: number,
+  driverLng: number,
+  reasonCode = 'TRAFFIC_UPDATE',
+) {
+  const ride = await getRide(rideId);
+  if (!ride || ride.driverId !== driverId) {
+    throw new Error('Corrida não encontrada ou motorista não autorizado');
+  }
+  if (ride.status !== 'IN_PROGRESS') {
+    throw new Error('Recálculo permitido apenas com corrida em andamento');
+  }
+
+  const updated = await recalculateActiveRoute({
+    rideId,
+    fromLat: driverLat,
+    fromLng: driverLng,
+    toLat: ride.dropoffLat,
+    toLng: ride.dropoffLng,
+    reasonCode,
+  });
+
+  if (updated) {
+    void emitEvent(
+      'ROUTE_RECALCULATED',
+      'ride',
+      rideId,
+      { reasonCode, etaSeconds: updated.etaSeconds },
+      { rideId, userIds: [ride.passengerId], driverId },
+    );
+  }
+
+  return updated;
+}
+
+export { toPublicActiveRoute };
 
 export async function ensureCodesIssued(rideId: string) {
   const existing = await getActivePair(rideId);

@@ -15,7 +15,10 @@ export type RealtimeEventType =
   | 'PRICING_UPDATED'
   | 'FRAUD_SIGNAL'
   | 'GPS_INTEGRITY_ALERT'
-  | 'DRIVER_LOCATION_UPDATED';
+  | 'DRIVER_LOCATION_UPDATED'
+  | 'RIDE_START_CODE_ISSUED'
+  | 'ROUTE_RECALCULATED'
+  | 'PAYMENT_FAILED';
 
 export interface RealtimeEvent<T = Record<string, unknown>> {
   eventId: string;

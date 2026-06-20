@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getCategory } from '../domain/rideCategories.js';
-import { computeQuote } from '../domain/pricing.js';
 import type { RideCategoryCode } from '../domain/types.js';
+import { quoteWithDynamicPricing } from '../pricing/dynamicPricingService.js';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   acceptOffer,
@@ -25,8 +25,11 @@ import {
 import {
   driverCompleteRide,
   driverMarkArrived,
+  getRideActiveRoute,
   getRideVerification,
+  recalculateRideRoute,
   reissueStartCodesForRide,
+  toPublicActiveRoute,
   verifyStartCode,
 } from '../ride/lifecycleService.js';
 import { submitRideReview } from '../reviews/reviewService.js';
@@ -47,6 +50,7 @@ import {
   startOnlineSession,
   updateDriverLocation,
 } from '../driver/driverLocationService.js';
+import { getWeatherAtPoint, isCategoryBlockedByWeather } from '../weather/weatherService.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -118,13 +122,23 @@ ridesRouter.post('/', async (req, res) => {
     return;
   }
 
+  const weather = await getWeatherAtPoint(parsed.data.pickupLat, parsed.data.pickupLng);
+  if (isCategoryBlockedByWeather(parsed.data.categoryCode, weather.weatherState)) {
+    res.status(409).json({
+      error: 'Categoria Moto indisponível devido às condições climáticas atuais',
+      weather: weather.weatherState,
+    });
+    return;
+  }
+
   let estimatedFareCentavos: number | undefined;
   if (parsed.data.distanceKm && parsed.data.durationMin) {
-    const quote = computeQuote({
-      categoryCode: parsed.data.categoryCode as RideCategoryCode,
-      distanceKm: parsed.data.distanceKm,
-      durationMin: parsed.data.durationMin,
-    });
+    const quote = await quoteWithDynamicPricing(
+      parsed.data.categoryCode as RideCategoryCode,
+      parsed.data.distanceKm,
+      parsed.data.durationMin,
+      { lat: parsed.data.pickupLat, lng: parsed.data.pickupLng },
+    );
     estimatedFareCentavos = quote.passengerFareCentavos;
   }
 
@@ -211,6 +225,48 @@ ridesRouter.get('/:id', async (req, res) => {
     ...(tracking ? { tracking: toPublicTracking(tracking) } : {}),
     ...(startCodes ? { startCodes } : {}),
   });
+});
+
+ridesRouter.get('/:id/route', async (req, res) => {
+  const ride = await getRide(req.params.id);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada' });
+    return;
+  }
+  if (ride.passengerId !== req.user!.id && ride.driverId !== req.user!.id) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+  const route = await getRideActiveRoute(ride.id);
+  if (!route) {
+    res.status(404).json({ error: 'Rota ativa não encontrada para esta corrida' });
+    return;
+  }
+  res.json({ route: toPublicActiveRoute(route) });
+});
+
+ridesRouter.post('/:id/route/recalculate', async (req, res) => {
+  if (req.user!.role !== 'driver') {
+    res.status(403).json({ error: 'Somente motoristas' });
+    return;
+  }
+  const lat = Number(req.body?.lat);
+  const lng = Number(req.body?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    res.status(400).json({ error: 'lat e lng são obrigatórios' });
+    return;
+  }
+  try {
+    const route = await recalculateRideRoute(req.params.id, req.user!.id, lat, lng, req.body?.reasonCode);
+    if (!route) {
+      res.status(404).json({ error: 'Rota ativa não encontrada' });
+      return;
+    }
+    res.json({ route: toPublicActiveRoute(route) });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao recalcular rota';
+    res.status(400).json({ error: message });
+  }
 });
 
 ridesRouter.post('/:id/cancel', async (req, res) => {

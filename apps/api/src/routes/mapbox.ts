@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
-import { autocompletePlaces, getDrivingRoute, getMapboxPublicConfig } from '../mapbox/mapboxClient.js';
+import { autocompletePlaces, getMapboxPublicConfig } from '../mapbox/mapboxClient.js';
 import { listRecentPlaces, recordPlaceConfirmation, toPublicPlaceHistory } from '../places/placeStore.js';
 import {
   deleteSavedPlace,
@@ -9,7 +9,10 @@ import {
   toPublicSavedPlace,
   upsertSavedPlace,
 } from '../places/savedPlaceStore.js';
+import { quoteRoutes, toPublicRouteQuote } from '../route/routeService.js';
+import { getWeatherAtPoint, getWeatherPublic } from '../weather/weatherService.js';
 import type { MapPlace } from '../mapbox/types.js';
+import type { RouteStrategy } from '../route/types.js';
 
 const autocompleteQuery = z.object({
   q: z.string().min(1),
@@ -140,12 +143,66 @@ routesRouter.get('/directions', async (req, res) => {
   }
 
   const waypoints = parseWaypoints(parsed.data.waypoints);
-  const route = await getDrivingRoute(
-    parsed.data.fromLat,
-    parsed.data.fromLng,
-    parsed.data.toLat,
-    parsed.data.toLng,
+  const quote = await quoteRoutes({
+    fromLat: parsed.data.fromLat,
+    fromLng: parsed.data.fromLng,
+    toLat: parsed.data.toLat,
+    toLng: parsed.data.toLng,
     waypoints,
-  );
-  res.json({ route });
+  });
+
+  res.json({
+    route: {
+      distanceKm: quote.distanceKm,
+      durationMin: quote.durationMin,
+      geometry: quote.recommended.geometry,
+      source: 'mapbox',
+      requestId: quote.requestId,
+      strategy: quote.selectedStrategy,
+    },
+  });
+});
+
+const quoteBodySchema = z.object({
+  fromLat: z.number(),
+  fromLng: z.number(),
+  toLat: z.number(),
+  toLng: z.number(),
+  waypoints: z.array(z.object({ lat: z.number(), lng: z.number() })).optional(),
+  strategy: z.enum(['fastest', 'shortest', 'economical', 'less_traffic']).optional(),
+});
+
+routesRouter.post('/quote', authMiddleware, async (req, res) => {
+  const parsed = quoteBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const weather = await getWeatherAtPoint(parsed.data.fromLat, parsed.data.fromLng);
+  const quote = await quoteRoutes({
+    fromLat: parsed.data.fromLat,
+    fromLng: parsed.data.fromLng,
+    toLat: parsed.data.toLat,
+    toLng: parsed.data.toLng,
+    waypoints: parsed.data.waypoints,
+    userId: req.user!.id,
+    preferredStrategy: parsed.data.strategy as RouteStrategy | undefined,
+  });
+
+  res.json({
+    ...toPublicRouteQuote(quote),
+    weather: getWeatherPublic(weather),
+  });
+});
+
+routesRouter.get('/weather', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    res.status(400).json({ error: 'lat e lng são obrigatórios' });
+    return;
+  }
+  const snapshot = await getWeatherAtPoint(lat, lng);
+  res.json({ weather: getWeatherPublic(snapshot) });
 });

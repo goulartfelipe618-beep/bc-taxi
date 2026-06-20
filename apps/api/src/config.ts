@@ -40,4 +40,6 @@ export const config = {
     process.env.RIDE_CODE_SECRET ?? (useMemoryDb ? 'bc-taxi-ride-code-dev' : required('RIDE_CODE_SECRET')),
   redisUrl: process.env.REDIS_URL ?? '',
   defaultPricingRegionId: process.env.DEFAULT_PRICING_REGION_ID ?? '00000000-0000-4000-8000-000000000010',
+  defaultServiceRegionId: process.env.DEFAULT_SERVICE_REGION_ID ?? '00000000-0000-4000-8000-000000000020',
+  weatherApiEnabled: process.env.WEATHER_API_ENABLED !== 'false',
 };

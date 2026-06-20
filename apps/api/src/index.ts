@@ -13,6 +13,7 @@ import { paymentsRouter } from './routes/payments.js';
 import { pricingRouter } from './routes/pricing.js';
 import { driverRouter, ridesRouter } from './routes/rides.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
+import { startHeartbeatJanitor } from './driver/driverLocationService.js';
 
 async function main() {
   await migrate();
@@ -54,6 +55,7 @@ async function main() {
   const server = createServer(app);
   attachWebSocketServer(server);
   const stopRedisFanout = startRedisFanout();
+  const stopHeartbeatJanitor = startHeartbeatJanitor();
 
   server.listen(config.port, () => {
     console.log(`BC Taxi API running on http://localhost:${config.port} (WS /ws)`);
@@ -61,6 +63,7 @@ async function main() {
 
   process.on('SIGINT', async () => {
     stopRedisFanout?.();
+    clearInterval(stopHeartbeatJanitor);
     if (!config.useMemoryDb && pool) await pool.end();
     process.exit(0);
   });

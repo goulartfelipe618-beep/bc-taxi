@@ -401,7 +401,13 @@ export async function findOnlineDriversPg(): Promise<DriverRecord[]> {
   const result = await pool.query(
     `SELECT d.*, u.full_name FROM drivers d
      JOIN users u ON u.id = d.user_id
-     WHERE d.is_online = TRUE AND d.operational_status = 'online' AND d.active_ride_id IS NULL`,
+     WHERE d.is_online = TRUE
+       AND d.operational_status = 'online'
+       AND d.active_ride_id IS NULL
+       AND d.location_updated_at IS NOT NULL
+       AND d.location_updated_at > NOW() - INTERVAL '120 seconds'
+       AND d.last_heartbeat_at IS NOT NULL
+       AND d.last_heartbeat_at > NOW() - INTERVAL '45 seconds'`,
   );
   return result.rows.map((r) => mapDriverRow(r, r.full_name as string));
 }
@@ -420,6 +426,7 @@ export async function setDriverOnlinePg(
       lat = COALESCE($4, lat),
       lng = COALESCE($5, lng),
       location_updated_at = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE location_updated_at END,
+      last_heartbeat_at = CASE WHEN $2 = TRUE AND $4 IS NOT NULL THEN NOW() ELSE last_heartbeat_at END,
       enabled_categories = COALESCE($6, enabled_categories)
      WHERE user_id = $1`,
     [userId, online, online ? 'online' : 'offline', lat ?? null, lng ?? null, enabledCategories ?? null],

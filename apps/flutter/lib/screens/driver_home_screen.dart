@@ -5,10 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/ride.dart';
-import '../models/trip_draft.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/driver_fleet_service.dart';
+import '../services/driver_location_tracker.dart';
 import '../services/driver_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/passenger/ride_review_sheet.dart';
@@ -36,6 +36,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _complianceLoading = true;
   final _codeController = TextEditingController();
   RealtimeService? _realtime;
+  DriverLocationTracker? _locationTracker;
 
   @override
   void initState() {
@@ -95,6 +96,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _locationTracker?.stop();
     _stopRealtime();
     _codeController.dispose();
     super.dispose();
@@ -126,19 +128,38 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     setState(() => _busy = true);
     try {
+      double? lat;
+      double? lng;
+      if (online) {
+        _locationTracker ??= DriverLocationTracker(svc);
+        final pos = await _locationTracker!.getCurrentPosition();
+        if (pos == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ative a localização do dispositivo para ficar online')),
+          );
+          return;
+        }
+        lat = pos.latitude;
+        lng = pos.longitude;
+      }
+
       await svc.setOnline(
         online: online,
-        lat: defaultDropoffLat,
-        lng: defaultDropoffLng,
+        lat: lat,
+        lng: lng,
         enabledCategories: _compliance?.enabledCategories,
       );
       if (!mounted) return;
       setState(() => _online = online);
       await _loadCompliance();
       if (online) {
+        _locationTracker ??= DriverLocationTracker(svc);
+        await _locationTracker!.start(rideId: _activeRide?.id);
         _ensureRealtime();
         _startPolling();
       } else {
+        _locationTracker?.stop();
         _pollTimer?.cancel();
         _stopRealtime();
         setState(() {

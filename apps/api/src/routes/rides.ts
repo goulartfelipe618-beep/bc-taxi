@@ -38,6 +38,11 @@ import {
   ensureDriverFleetBootstrap,
   syncDriverProfileFromFleet,
 } from '../fleet/driverProfileSync.js';
+import {
+  endOnlineSession,
+  startOnlineSession,
+  updateDriverLocation,
+} from '../driver/driverLocationService.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -408,6 +413,11 @@ driverRouter.post('/status', async (req, res) => {
     driver.petReady = compliance.activeVehicle?.petReady ?? false;
     driver.comfortApproved = compliance.activeVehicle?.comfortApproved ?? false;
     await memoryMatchStore.upsertDriver(driver);
+    if (parsed.data.online) {
+      await startOnlineSession(req.user!.id, parsed.data.lat, parsed.data.lng);
+    } else {
+      await endOnlineSession(req.user!.id, 'offline');
+    }
     res.json({ ok: true, driver, compliance: toPublicCompliance(compliance) });
     return;
   }
@@ -420,7 +430,47 @@ driverRouter.post('/status', async (req, res) => {
     parsed.data.lng,
     parsed.data.online ? compliance.enabledCategories : undefined,
   );
+  if (parsed.data.online) {
+    await startOnlineSession(req.user!.id, parsed.data.lat, parsed.data.lng);
+  } else {
+    await endOnlineSession(req.user!.id, 'offline');
+  }
   res.json({ ok: true, compliance: toPublicCompliance(compliance) });
+});
+
+const locationSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  heading: z.number().optional(),
+  rideId: z.string().uuid().optional(),
+});
+
+driverRouter.post('/location', async (req, res) => {
+  if (req.user!.role !== 'driver') {
+    res.status(403).json({ error: 'Somente motoristas' });
+    return;
+  }
+
+  const parsed = locationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const online = await isDriverOnlineForLocation(req.user!.id);
+  if (!online) {
+    res.status(409).json({ error: 'Motorista precisa estar online para enviar localização' });
+    return;
+  }
+
+  const result = await updateDriverLocation({
+    driverId: req.user!.id,
+    lat: parsed.data.lat,
+    lng: parsed.data.lng,
+    heading: parsed.data.heading,
+    rideId: parsed.data.rideId,
+  });
+  res.json(result);
 });
 
 driverRouter.get('/offers', async (req, res) => {

@@ -40,6 +40,22 @@ class DriverService {
     return DriverSetOnlineResult(enabledCategories: cats);
   }
 
+  Future<void> updateLocation({
+    required double lat,
+    required double lng,
+    double? heading,
+    String? rideId,
+  }) async {
+    final res = await _client.post('/v1/driver/location', body: {
+      'lat': lat,
+      'lng': lng,
+      if (heading != null) 'heading': heading,
+      if (rideId != null) 'rideId': rideId,
+    });
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+  }
+
   Future<List<DriverOffer>> fetchOffers() async {
     final res = await _client.get('/v1/driver/offers');
     final data = _client.decodeJson(res);

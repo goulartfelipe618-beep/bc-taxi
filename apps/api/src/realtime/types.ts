@@ -14,7 +14,8 @@ export type RealtimeEventType =
   | 'REVIEW_CREATED'
   | 'PRICING_UPDATED'
   | 'FRAUD_SIGNAL'
-  | 'GPS_INTEGRITY_ALERT';
+  | 'GPS_INTEGRITY_ALERT'
+  | 'DRIVER_LOCATION_UPDATED';
 
 export interface RealtimeEvent<T = Record<string, unknown>> {
   eventId: string;

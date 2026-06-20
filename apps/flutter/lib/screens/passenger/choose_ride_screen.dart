@@ -8,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../services/catalog_service.dart';
 import '../../services/ride_service.dart';
 import '../../theme/passenger_theme.dart';
+import '../../widgets/passenger/trip_route_map.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
 
@@ -125,8 +126,15 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
             flex: 2,
             child: Stack(
               children: [
-                Container(color: const Color(0xFFDCE3EA)),
-                const Center(child: Icon(Icons.map_outlined, size: 64, color: BcColors.gray)),
+                TripRouteMap(
+                  pickupLat: trip.pickupLat,
+                  pickupLng: trip.pickupLng,
+                  dropoffLat: trip.dropoffLat,
+                  dropoffLng: trip.dropoffLng,
+                  stops: trip.stops,
+                  routePoints: trip.routePoints,
+                  pickupLabel: trip.pickupAddress,
+                ),
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(12),

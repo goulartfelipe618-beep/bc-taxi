@@ -9,6 +9,7 @@ import '../../services/trip_resolver.dart';
 import '../../theme/passenger_theme.dart';
 import '../../widgets/passenger/bc_widgets.dart';
 import 'passenger_routes.dart';
+import 'widgets/add_stops_sheet.dart';
 import 'widgets/passenger_sheets.dart';
 import 'widgets/place_autocomplete_sheet.dart';
 
@@ -33,7 +34,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   MapPlace? _destinationPlace;
   String _pickupLabel = 'Recolher agora';
   String _profileLabel = 'Para mim';
-  final List<String> _stops = [];
+  final List<MapPlace> _stops = [];
   bool _navigating = false;
   List<MapPlace> _recentPlaces = [];
   List<SavedPlace> _savedPlaces = [];
@@ -109,8 +110,11 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     final token = context.read<AuthService>().token;
     await MapboxService.confirmPlace(pickup, token: token);
     await MapboxService.confirmPlace(dropoff, token: token);
+    for (final stop in _stops) {
+      await MapboxService.confirmPlace(stop, token: token);
+    }
 
-    final trip = await TripResolver.buildFromMapPlaces(pickup: pickup, dropoff: dropoff);
+    final trip = await TripResolver.buildFromMapPlaces(pickup: pickup, dropoff: dropoff, stops: _stops);
     if (!mounted) return;
     setState(() => _navigating = false);
     PassengerRoutes.openConfirmPickup(
@@ -164,12 +168,23 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   }
 
   Future<void> _addStop() async {
-    final result = await showPlaceAutocompleteSheet(
+    final result = await showAddStopsSheet(
       context,
-      title: 'Paragem intermédia',
-      hint: 'Adicionar paragem',
+      origin: _originPlace,
+      stops: _stops,
+      destination: _destinationPlace,
     );
-    if (result != null) setState(() => _stops.add(result.label));
+    if (result == null) return;
+    setState(() {
+      _originPlace = result.origin;
+      _stops
+        ..clear()
+        ..addAll(result.stops);
+      _destinationPlace = result.destination;
+    });
+    if (result.destination != null) {
+      await _confirmAndNavigate(result.origin, result.destination!);
+    }
   }
 
   @override
@@ -233,7 +248,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                     Column(
                       children: [
                         Container(width: 10, height: 10, decoration: const BoxDecoration(color: BcColors.black, shape: BoxShape.circle)),
-                        Container(width: 2, height: 36 + (_stops.length * 24), color: BcColors.black),
+                        Container(width: 2, height: 36 + (_stops.length * 28), color: BcColors.black),
                         Container(width: 10, height: 10, decoration: BoxDecoration(border: Border.all(color: BcColors.black, width: 2))),
                       ],
                     ),
@@ -249,7 +264,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                           ..._stops.map(
                             (s) => Padding(
                               padding: const EdgeInsets.only(top: 8),
-                              child: Text(s, style: PassengerTheme.caption),
+                              child: Text(s.label, style: PassengerTheme.caption.copyWith(fontWeight: FontWeight.w500)),
                             ),
                           ),
                           const SizedBox(height: 18),
@@ -267,7 +282,11 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                         ],
                       ),
                     ),
-                    IconButton(onPressed: _addStop, icon: const Icon(Icons.add_circle_outline)),
+                    IconButton(
+                      onPressed: _addStop,
+                      tooltip: 'Adicionar paragens',
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
                   ],
                 ),
               ),

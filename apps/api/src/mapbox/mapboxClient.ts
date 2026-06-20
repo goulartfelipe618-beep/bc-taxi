@@ -58,27 +58,45 @@ export async function getDrivingRoute(
   fromLng: number,
   toLat: number,
   toLng: number,
+  waypoints: { lat: number; lng: number }[] = [],
 ): Promise<RouteSummary> {
+  const points = [{ lat: fromLat, lng: fromLng }, ...waypoints, { lat: toLat, lng: toLng }];
+  return getDrivingRoutePoints(points);
+}
+
+export async function getDrivingRoutePoints(
+  points: { lat: number; lng: number }[],
+): Promise<RouteSummary> {
+  if (points.length < 2) {
+    return mockRoute(points[0]?.lat ?? 0, points[0]?.lng ?? 0, points[1]?.lat ?? 0, points[1]?.lng ?? 0);
+  }
+
   const token = config.mapboxAccessToken;
-  if (!token) return mockRoute(fromLat, fromLng, toLat, toLng);
+  const coordPath = points.map((p) => `${p.lng},${p.lat}`).join(';');
+
+  if (!token) {
+    return mockRoute(points[0].lat, points[0].lng, points.at(-1)!.lat, points.at(-1)!.lng);
+  }
 
   try {
-    const url = new URL(
-      `https://api.mapbox.com/directions/v5/mapbox/driving/${fromLng},${fromLat};${toLng},${toLat}`,
-    );
+    const url = new URL(`https://api.mapbox.com/directions/v5/mapbox/driving/${coordPath}`);
     url.searchParams.set('access_token', token);
     url.searchParams.set('geometries', 'geojson');
     url.searchParams.set('overview', 'full');
     url.searchParams.set('language', 'pt');
 
     const res = await fetch(url);
-    if (!res.ok) return mockRoute(fromLat, fromLng, toLat, toLng);
+    if (!res.ok) {
+      return mockRoute(points[0].lat, points[0].lng, points.at(-1)!.lat, points.at(-1)!.lng);
+    }
 
     const data = (await res.json()) as {
       routes?: { distance: number; duration: number; geometry: RouteSummary['geometry'] }[];
     };
     const route = data.routes?.[0];
-    if (!route) return mockRoute(fromLat, fromLng, toLat, toLng);
+    if (!route) {
+      return mockRoute(points[0].lat, points[0].lng, points.at(-1)!.lat, points.at(-1)!.lng);
+    }
 
     return {
       distanceKm: Math.round((route.distance / 1000) * 100) / 100,
@@ -87,7 +105,7 @@ export async function getDrivingRoute(
       source: 'mapbox',
     };
   } catch {
-    return mockRoute(fromLat, fromLng, toLat, toLng);
+    return mockRoute(points[0].lat, points[0].lng, points.at(-1)!.lat, points.at(-1)!.lng);
   }
 }
 

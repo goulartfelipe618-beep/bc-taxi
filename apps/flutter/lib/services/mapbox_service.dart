@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
+import '../models/trip_draft.dart';
 
 class MapPlace {
   const MapPlace({
@@ -50,15 +51,28 @@ class RouteSummary {
   const RouteSummary({
     required this.distanceKm,
     required this.durationMin,
+    this.routePoints = const [],
   });
 
   final double distanceKm;
   final double durationMin;
+  final List<RoutePoint> routePoints;
 
   factory RouteSummary.fromJson(Map<String, dynamic> json) {
+    final geometry = json['geometry'] as Map<String, dynamic>?;
+    final coords = geometry?['coordinates'] as List<dynamic>?;
+    final points = <RoutePoint>[];
+    if (coords != null) {
+      for (final c in coords) {
+        if (c is List && c.length >= 2) {
+          points.add(RoutePoint(lat: (c[1] as num).toDouble(), lng: (c[0] as num).toDouble()));
+        }
+      }
+    }
     return RouteSummary(
       distanceKm: (json['distanceKm'] as num).toDouble(),
       durationMin: (json['durationMin'] as num).toDouble(),
+      routePoints: points,
     );
   }
 }
@@ -89,16 +103,21 @@ class MapboxService {
     required double fromLng,
     required double toLat,
     required double toLng,
+    List<MapPlace> waypoints = const [],
   }) async {
     try {
-      final uri = Uri.parse('$apiBaseUrl/v1/routes/directions').replace(
-        queryParameters: {
-          'fromLat': '$fromLat',
-          'fromLng': '$fromLng',
-          'toLat': '$toLat',
-          'toLng': '$toLng',
-        },
-      );
+      final params = {
+        'fromLat': '$fromLat',
+        'fromLng': '$fromLng',
+        'toLat': '$toLat',
+        'toLng': '$toLng',
+      };
+      if (waypoints.isNotEmpty) {
+        params['waypoints'] = jsonEncode(
+          waypoints.map((w) => {'lat': w.lat, 'lng': w.lng}).toList(),
+        );
+      }
+      final uri = Uri.parse('$apiBaseUrl/v1/routes/directions').replace(queryParameters: params);
       final res = await http.get(uri).timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body) as Map<String, dynamic>;

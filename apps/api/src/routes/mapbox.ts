@@ -21,7 +21,26 @@ const directionsQuery = z.object({
   fromLng: z.coerce.number(),
   toLat: z.coerce.number(),
   toLng: z.coerce.number(),
+  waypoints: z.string().optional(),
 });
+
+function parseWaypoints(raw?: string): { lat: number; lng: number }[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((p) => {
+        if (typeof p !== 'object' || p == null) return null;
+        const item = p as { lat?: unknown; lng?: unknown };
+        if (typeof item.lat !== 'number' || typeof item.lng !== 'number') return null;
+        return { lat: item.lat, lng: item.lng };
+      })
+      .filter((p): p is { lat: number; lng: number } => p != null);
+  } catch {
+    return [];
+  }
+}
 
 export const placesRouter = Router();
 
@@ -120,11 +139,13 @@ routesRouter.get('/directions', async (req, res) => {
     return;
   }
 
+  const waypoints = parseWaypoints(parsed.data.waypoints);
   const route = await getDrivingRoute(
     parsed.data.fromLat,
     parsed.data.fromLng,
     parsed.data.toLat,
     parsed.data.toLng,
+    waypoints,
   );
   res.json({ route });
 });

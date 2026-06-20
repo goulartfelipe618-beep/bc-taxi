@@ -5,6 +5,7 @@ class TripResolver {
   static Future<TripDraft> buildFromMapPlaces({
     required MapPlace pickup,
     required MapPlace dropoff,
+    List<MapPlace> stops = const [],
     bool scheduled = false,
   }) async {
     final route = await MapboxService.getDirections(
@@ -12,6 +13,7 @@ class TripResolver {
       fromLng: pickup.lng,
       toLat: dropoff.lat,
       toLng: dropoff.lng,
+      waypoints: stops,
     );
 
     return TripDraft(
@@ -22,6 +24,12 @@ class TripResolver {
       dropoffAddress: dropoff.address,
       dropoffLat: dropoff.lat,
       dropoffLng: dropoff.lng,
+      stops: stops
+          .map(
+            (s) => TripStop(label: s.label, address: s.address, lat: s.lat, lng: s.lng),
+          )
+          .toList(),
+      routePoints: route?.routePoints.toList() ?? const [],
       distanceKm: route?.distanceKm,
       durationMin: route?.durationMin,
       scheduled: scheduled,

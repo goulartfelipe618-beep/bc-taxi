@@ -1,3 +1,24 @@
+class TripStop {
+  const TripStop({
+    required this.label,
+    required this.address,
+    required this.lat,
+    required this.lng,
+  });
+
+  final String label;
+  final String address;
+  final double lat;
+  final double lng;
+}
+
+class RoutePoint {
+  const RoutePoint({required this.lat, required this.lng});
+
+  final double lat;
+  final double lng;
+}
+
 class TripDraft {
   const TripDraft({
     required this.pickupAddress,
@@ -7,6 +28,8 @@ class TripDraft {
     required this.dropoffAddress,
     required this.dropoffLat,
     required this.dropoffLng,
+    this.stops = const [],
+    this.routePoints = const [],
     this.distanceKm,
     this.durationMin,
     this.scheduled = false,
@@ -19,6 +42,8 @@ class TripDraft {
   final String dropoffAddress;
   final double dropoffLat;
   final double dropoffLng;
+  final List<TripStop> stops;
+  final List<RoutePoint> routePoints;
   final double? distanceKm;
   final double? durationMin;
   final bool scheduled;
@@ -26,6 +51,8 @@ class TripDraft {
   TripDraft copyWith({
     double? distanceKm,
     double? durationMin,
+    List<TripStop>? stops,
+    List<RoutePoint>? routePoints,
   }) {
     return TripDraft(
       pickupAddress: pickupAddress,
@@ -35,6 +62,8 @@ class TripDraft {
       dropoffAddress: dropoffAddress,
       dropoffLat: dropoffLat,
       dropoffLng: dropoffLng,
+      stops: stops ?? this.stops,
+      routePoints: routePoints ?? this.routePoints,
       distanceKm: distanceKm ?? this.distanceKm,
       durationMin: durationMin ?? this.durationMin,
       scheduled: scheduled,

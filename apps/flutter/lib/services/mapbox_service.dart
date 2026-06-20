@@ -156,4 +156,92 @@ class MapboxService {
       return [];
     }
   }
+
+  static Future<List<SavedPlace>> savedPlaces({String? token}) async {
+    if (token == null) return [];
+    try {
+      final res = await http.get(
+        Uri.parse('$apiBaseUrl/v1/places/saved'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode != 200) return [];
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (body['places'] as List<dynamic>).cast<Map<String, dynamic>>();
+      return list.map(SavedPlace.fromJson).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<bool> savePlace({
+    required String token,
+    required String placeType,
+    required MapPlace place,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$apiBaseUrl/v1/places/saved'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'placeType': placeType,
+              'label': place.label,
+              'address': place.address,
+              'lat': place.lat,
+              'lng': place.lng,
+              if (place.featureId != null) 'featureId': place.featureId,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+      return res.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+class SavedPlace {
+  const SavedPlace({
+    required this.id,
+    required this.placeType,
+    required this.label,
+    required this.address,
+    required this.lat,
+    required this.lng,
+    this.featureId,
+  });
+
+  final String id;
+  final String placeType;
+  final String label;
+  final String address;
+  final double lat;
+  final double lng;
+  final String? featureId;
+
+  factory SavedPlace.fromJson(Map<String, dynamic> json) {
+    return SavedPlace(
+      id: json['id'] as String,
+      placeType: json['placeType'] as String,
+      label: json['label'] as String,
+      address: json['address'] as String,
+      lat: (json['lat'] as num).toDouble(),
+      lng: (json['lng'] as num).toDouble(),
+      featureId: json['featureId'] as String?,
+    );
+  }
+
+  MapPlace toMapPlace() {
+    return MapPlace(
+      id: featureId ?? id,
+      label: label,
+      address: address,
+      lat: lat,
+      lng: lng,
+      featureId: featureId,
+    );
+  }
 }

@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import { autocompletePlaces, getDrivingRoute, getMapboxPublicConfig } from '../mapbox/mapboxClient.js';
 import { listRecentPlaces, recordPlaceConfirmation, toPublicPlaceHistory } from '../places/placeStore.js';
+import {
+  deleteSavedPlace,
+  listSavedPlaces,
+  toPublicSavedPlace,
+  upsertSavedPlace,
+} from '../places/savedPlaceStore.js';
 import type { MapPlace } from '../mapbox/types.js';
 
 const autocompleteQuery = z.object({
@@ -69,6 +75,40 @@ placesRouter.get('/recent', authMiddleware, async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 10), 20);
   const items = await listRecentPlaces(req.user!.id, limit);
   res.json({ places: items.map(toPublicPlaceHistory) });
+});
+
+const savedPlaceSchema = z.object({
+  placeType: z.enum(['favorite', 'home', 'work']),
+  label: z.string().min(1),
+  address: z.string().min(1),
+  lat: z.number(),
+  lng: z.number(),
+  featureId: z.string().optional(),
+});
+
+placesRouter.get('/saved', authMiddleware, async (req, res) => {
+  const items = await listSavedPlaces(req.user!.id);
+  res.json({ places: items.map(toPublicSavedPlace) });
+});
+
+placesRouter.post('/saved', authMiddleware, async (req, res) => {
+  const parsed = savedPlaceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const place = await upsertSavedPlace(req.user!.id, parsed.data);
+  res.status(201).json({ place: toPublicSavedPlace(place) });
+});
+
+placesRouter.delete('/saved/:id', authMiddleware, async (req, res) => {
+  const ok = await deleteSavedPlace(req.user!.id, req.params.id);
+  if (!ok) {
+    res.status(404).json({ error: 'Local não encontrado' });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 export const routesRouter = Router();

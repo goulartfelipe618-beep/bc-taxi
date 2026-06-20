@@ -36,7 +36,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   final List<String> _stops = [];
   bool _navigating = false;
   List<MapPlace> _recentPlaces = [];
+  List<SavedPlace> _savedPlaces = [];
   bool _loadingRecent = true;
+  bool _loadingSaved = true;
 
   @override
   void initState() {
@@ -50,17 +52,54 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         lng: defaultDropoffLng,
       );
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecentPlaces());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlaces());
   }
 
-  Future<void> _loadRecentPlaces() async {
+  Future<void> _loadPlaces() async {
     final token = context.read<AuthService>().token;
-    final apiRecent = await MapboxService.recentPlaces(token: token);
+    final results = await Future.wait([
+      MapboxService.recentPlaces(token: token),
+      MapboxService.savedPlaces(token: token),
+    ]);
     if (!mounted) return;
     setState(() {
-      _recentPlaces = apiRecent;
+      _recentPlaces = results[0] as List<MapPlace>;
+      _savedPlaces = results[1] as List<SavedPlace>;
       _loadingRecent = false;
+      _loadingSaved = false;
     });
+  }
+
+  IconData _savedIcon(String placeType) {
+    switch (placeType) {
+      case 'home':
+        return Icons.home_outlined;
+      case 'work':
+        return Icons.work_outline;
+      default:
+        return Icons.star_outline;
+    }
+  }
+
+  Future<void> _configureSavedPlace(String placeType, String title) async {
+    final token = context.read<AuthService>().token;
+    if (token == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicie sessão para guardar locais')),
+      );
+      return;
+    }
+
+    final result = await showPlaceAutocompleteSheet(context, title: title, hint: 'Buscar endereço');
+    if (result == null) return;
+
+    final ok = await MapboxService.savePlace(token: token, placeType: placeType, place: result);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? 'Local guardado' : 'Não foi possível guardar')),
+    );
+    if (ok) _loadPlaces();
   }
 
   Future<void> _confirmAndNavigate(MapPlace pickup, MapPlace dropoff) async {
@@ -79,7 +118,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       trip: trip,
       preselectedCategoryId: widget.preselectedCategoryId,
     );
-    _loadRecentPlaces();
+    _loadPlaces();
   }
 
   Future<void> _goToChooseRide(PlaceItem place) async {
@@ -243,7 +282,44 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                 ],
               ),
               const Divider(height: 24),
-              ...savedPlaces.map((p) => PlaceListTile(name: p.name, address: p.address, leading: Icons.star_outline, onTap: () => _goToChooseRide(p))),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _configureSavedPlace('home', 'Definir casa'),
+                      icon: const Icon(Icons.home_outlined, size: 18),
+                      label: const Text('Casa'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _configureSavedPlace('work', 'Definir trabalho'),
+                      icon: const Icon(Icons.work_outline, size: 18),
+                      label: const Text('Trabalho'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_loadingSaved)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(minHeight: 2, color: BcColors.black),
+                )
+              else if (_savedPlaces.isNotEmpty)
+                ..._savedPlaces.map(
+                  (p) => PlaceListTile(
+                    name: p.label,
+                    address: p.address,
+                    leading: _savedIcon(p.placeType),
+                    onTap: () => _goToChooseRideFromMapPlace(p.toMapPlace()),
+                  ),
+                )
+              else
+                ...savedPlaces.map(
+                  (p) => PlaceListTile(name: p.name, address: p.address, leading: Icons.star_outline, onTap: () => _goToChooseRide(p)),
+                ),
               const Divider(height: 24),
               Row(
                 children: [

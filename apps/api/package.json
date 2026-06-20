@@ -12,7 +12,8 @@
     "test:flow": "tsx scripts/test-flow.ts",
     "test:layer2": "tsx scripts/test-layer2.ts",
     "test:mapbox": "tsx scripts/test-mapbox.ts",
-    "test:camada3": "tsx scripts/test-camada3.ts"
+    "test:camada3": "tsx scripts/test-camada3.ts",
+    "test:saved-places": "tsx scripts/test-saved-places.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

@@ -1,12 +1,19 @@
 import '../models/ride.dart';
 import 'api_client.dart';
+import 'driver_fleet_service.dart';
+
+class DriverSetOnlineResult {
+  const DriverSetOnlineResult({required this.enabledCategories});
+
+  final List<String> enabledCategories;
+}
 
 class DriverService {
   DriverService(this._client);
 
   final ApiClient _client;
 
-  Future<void> setOnline({
+  Future<DriverSetOnlineResult> setOnline({
     required bool online,
     double? lat,
     double? lng,
@@ -19,7 +26,18 @@ class DriverService {
       if (enabledCategories != null) 'enabledCategories': enabledCategories,
     });
     final data = _client.decodeJson(res);
+    if (res.statusCode == 403 && data['compliance'] != null) {
+      throw ApiException(
+        data['error'] as String? ?? 'Documentação incompleta para operar',
+        403,
+        extra: data,
+      );
+    }
     _client.throwIfError(res, data);
+    final compliance = data['compliance'] as Map<String, dynamic>?;
+    final cats = (compliance?['enabledCategories'] as List<dynamic>? ?? enabledCategories ?? ['economico'])
+        .cast<String>();
+    return DriverSetOnlineResult(enabledCategories: cats);
   }
 
   Future<List<DriverOffer>> fetchOffers() async {

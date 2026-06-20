@@ -11,6 +11,7 @@ async function main() {
     upsertVehicleDocument,
     listDriverVehicles,
   } = await import('../src/fleet/fleetStore.js');
+  const { syncDriverProfileFromFleet } = await import('../src/fleet/driverProfileSync.js');
 
   const driverId = 'fleet-test-driver';
   seedDemoFleetCompliance(driverId, ['economico', 'comfort'], { comfortApproved: true });
@@ -43,6 +44,9 @@ async function main() {
 
   profile = await getDriverCompliance(driverId);
   if (!profile.canOperate) throw new Error('Should be compliant after docs');
+
+  const synced = await syncDriverProfileFromFleet(driverId);
+  if (!synced.canOperate) throw new Error('Sync should preserve compliance');
 
   const vehicles = await listDriverVehicles(driverId);
   if (vehicles.length < 1) throw new Error('Expected vehicles');

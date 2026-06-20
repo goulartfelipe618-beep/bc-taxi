@@ -39,7 +39,7 @@ export function seedDemoFleetCompliance(driverId: string, categoryCodes: string[
     make: 'Demo',
     model: 'Sedan',
     year: new Date().getFullYear() - 5,
-    bodyType: 'hatch',
+    bodyType: opts?.comfortApproved || categoryCodes.includes('comfort') ? 'hatch_premium' : 'hatch',
     seatCount: 4,
     wheelchairAccessible: opts?.wheelchairAccessible ?? false,
     petReady: opts?.petReady ?? false,

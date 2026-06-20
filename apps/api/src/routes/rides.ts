@@ -33,6 +33,11 @@ import { submitRideReview } from '../reviews/reviewService.js';
 import { getPassengerReputation } from '../reviews/reputationService.js';
 import { getPlainCodesForTest } from '../ride/codeStore.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
+import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
+import {
+  ensureDriverFleetBootstrap,
+  syncDriverProfileFromFleet,
+} from '../fleet/driverProfileSync.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -366,6 +371,19 @@ driverRouter.post('/status', async (req, res) => {
     return;
   }
 
+  await ensureDriverFleetBootstrap(req.user!.id);
+
+  if (parsed.data.online) {
+    const compliance = await syncDriverProfileFromFleet(req.user!.id);
+    if (!compliance.canOperate) {
+      res.status(403).json({
+        error: 'Documentação incompleta para operar',
+        compliance: toPublicCompliance(compliance),
+      });
+      return;
+    }
+  }
+
   if (useMemory()) {
     const prev = await memoryMatchStore.getDriver(req.user!.id);
     if (parsed.data.lat != null && parsed.data.lng != null) {
@@ -378,22 +396,31 @@ driverRouter.post('/status', async (req, res) => {
         prevAt: prev?.locationUpdatedAt,
       });
     }
+    const compliance = await syncDriverProfileFromFleet(req.user!.id);
     const driver = await memoryMatchStore.setDriverOnline(
       req.user!.id,
       parsed.data.online,
       parsed.data.lat,
       parsed.data.lng,
     );
-    if (parsed.data.enabledCategories) {
-      driver.enabledCategories = parsed.data.enabledCategories;
-      await memoryMatchStore.upsertDriver(driver);
-    }
-    res.json({ driver });
+    driver.enabledCategories = compliance.enabledCategories;
+    driver.wheelchairAccessible = compliance.activeVehicle?.wheelchairAccessible ?? false;
+    driver.petReady = compliance.activeVehicle?.petReady ?? false;
+    driver.comfortApproved = compliance.activeVehicle?.comfortApproved ?? false;
+    await memoryMatchStore.upsertDriver(driver);
+    res.json({ ok: true, driver, compliance: toPublicCompliance(compliance) });
     return;
   }
 
-  await setDriverOnlinePg(req.user!.id, parsed.data.online, parsed.data.lat, parsed.data.lng);
-  res.json({ ok: true });
+  const compliance = await getDriverCompliance(req.user!.id);
+  await setDriverOnlinePg(
+    req.user!.id,
+    parsed.data.online,
+    parsed.data.lat,
+    parsed.data.lng,
+    parsed.data.online ? compliance.enabledCategories : undefined,
+  );
+  res.json({ ok: true, compliance: toPublicCompliance(compliance) });
 });
 
 driverRouter.get('/offers', async (req, res) => {

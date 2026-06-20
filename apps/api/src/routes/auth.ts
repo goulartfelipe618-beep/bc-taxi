@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { pool, toPublicUser } from '../db.js';
 import { authMiddleware, authResponse } from '../middleware/auth.js';
+import { ensureDriverFleetBootstrap } from '../fleet/driverProfileSync.js';
+import { syncMemoryDriverFromFleet } from '../stores/memoryMatchStore.js';
 import * as userStore from '../userStore.js';
 
 const registerSchema = z.object({
@@ -39,6 +41,14 @@ authRouter.post('/register', async (req, res) => {
         return;
       }
       const user = await userStore.createUser({ email: normalizedEmail, password, fullName, role, phone });
+      if (role === 'driver') {
+        syncMemoryDriverFromFleet(user.id, {
+          enabledCategories: ['economico'],
+          wheelchairAccessible: false,
+          petReady: false,
+          comfortApproved: false,
+        });
+      }
       res.status(201).json(authResponse(user));
       return;
     }
@@ -60,10 +70,11 @@ authRouter.post('/register', async (req, res) => {
     const user = result.rows[0];
     if (role === 'driver') {
       await pool.query(
-        `INSERT INTO drivers (user_id, enabled_categories) VALUES ($1, ARRAY['economico','comfort'])
+        `INSERT INTO drivers (user_id, enabled_categories) VALUES ($1, ARRAY['economico'])
          ON CONFLICT (user_id) DO NOTHING`,
         [user.id],
       );
+      await ensureDriverFleetBootstrap(user.id);
     }
 
     res.status(201).json(authResponse(user));
@@ -105,6 +116,10 @@ authRouter.post('/login', async (req, res) => {
     if (!valid) {
       res.status(401).json({ error: 'E-mail ou senha inválidos' });
       return;
+    }
+
+    if (!config.useMemoryDb && user.role === 'driver') {
+      await ensureDriverFleetBootstrap(user.id);
     }
 
     res.json(authResponse(user));

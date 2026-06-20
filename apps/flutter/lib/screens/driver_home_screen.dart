@@ -8,6 +8,7 @@ import '../models/ride.dart';
 import '../models/trip_draft.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/driver_fleet_service.dart';
 import '../services/driver_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/passenger/ride_review_sheet.dart';
@@ -31,8 +32,39 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   StartCodes? _startCodes;
   String? _error;
   bool _busy = false;
+  DriverCompliance? _compliance;
+  bool _complianceLoading = true;
   final _codeController = TextEditingController();
   RealtimeService? _realtime;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCompliance();
+  }
+
+  DriverFleetService? get _fleetService {
+    final token = context.read<AuthService>().token;
+    if (token == null) return null;
+    return DriverFleetService(ApiClient(token));
+  }
+
+  Future<void> _loadCompliance() async {
+    final fleet = _fleetService;
+    if (fleet == null) return;
+    setState(() => _complianceLoading = true);
+    try {
+      final c = await fleet.fetchCompliance();
+      if (!mounted) return;
+      setState(() {
+        _compliance = c;
+        _complianceLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _complianceLoading = false);
+    }
+  }
 
   void _onRealtimeEvent(Map<String, dynamic> event) {
     final type = eventType(event);
@@ -78,16 +110,31 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _setOnline(bool online) async {
     final svc = _driverService;
     if (svc == null) return;
+
+    if (online && _compliance != null && !_compliance!.canOperate) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complete veículo e documentos antes de ficar online')),
+      );
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const DriverComplianceScreen()),
+      );
+      await _loadCompliance();
+      return;
+    }
+
     setState(() => _busy = true);
     try {
       await svc.setOnline(
         online: online,
         lat: defaultDropoffLat,
         lng: defaultDropoffLng,
-        enabledCategories: ['economico', 'comfort', 'executivo'],
+        enabledCategories: _compliance?.enabledCategories,
       );
       if (!mounted) return;
       setState(() => _online = online);
+      await _loadCompliance();
       if (online) {
         _ensureRealtime();
         _startPolling();
@@ -98,6 +145,23 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           _offers = [];
           _activeRide = null;
         });
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.statusCode == 403 && e.extra?['compliance'] != null) {
+        setState(() {
+          _compliance = DriverCompliance.fromJson({'compliance': e.extra!['compliance']});
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DriverComplianceScreen()),
+        );
+        await _loadCompliance();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (!mounted) return;
@@ -264,10 +328,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           IconButton(
             icon: const Icon(Icons.description_outlined),
             tooltip: 'Veículo e documentos',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DriverComplianceScreen()),
-            ),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DriverComplianceScreen()),
+              );
+              await _loadCompliance();
+            },
           ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
@@ -332,6 +399,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         if (_error != null) ...[
           const SizedBox(height: 8),
           Text(_error!, style: const TextStyle(color: Colors.red)),
+        ],
+        if (!_complianceLoading && _compliance != null && !_compliance!.canOperate) ...[
+          const SizedBox(height: 12),
+          Card(
+            color: Colors.amber.shade50,
+            child: ListTile(
+              leading: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              title: const Text('Cadastro incompleto'),
+              subtitle: Text(_compliance!.blockReasons.take(2).join(' · ')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DriverComplianceScreen()),
+                );
+                await _loadCompliance();
+              },
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         if (_activeRide != null) _buildActiveRideCard(_activeRide!) else _buildOffersSection(),

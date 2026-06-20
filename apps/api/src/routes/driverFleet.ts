@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
 import {
+  ensureDriverFleetBootstrap,
+  syncDriverProfileFromFleet,
+} from '../fleet/driverProfileSync.js';
+import {
   createVehicle,
   listDriverDocuments,
   listDriverVehicles,
@@ -22,6 +26,7 @@ driverFleetRouter.get('/compliance', async (req, res) => {
     res.status(403).json({ error: 'Somente motoristas' });
     return;
   }
+  await ensureDriverFleetBootstrap(req.user!.id);
   const profile = await getDriverCompliance(req.user!.id);
   res.json({ compliance: toPublicCompliance(profile) });
 });
@@ -60,6 +65,7 @@ driverFleetRouter.post('/vehicles', async (req, res) => {
     return;
   }
   const vehicle = await createVehicle(req.user!.id, parsed.data);
+  await syncDriverProfileFromFleet(req.user!.id);
   res.status(201).json({ vehicle: toPublicVehicle(vehicle) });
 });
 
@@ -92,6 +98,7 @@ driverFleetRouter.post('/documents', async (req, res) => {
     return;
   }
   const doc = await upsertDriverDocument(req.user!.id, parsed.data);
+  await syncDriverProfileFromFleet(req.user!.id);
   res.status(201).json({ document: toPublicDocument(doc) });
 });
 
@@ -133,5 +140,6 @@ driverFleetRouter.post('/vehicles/:vehicleId/documents', async (req, res) => {
     return;
   }
   const doc = await upsertVehicleDocument(req.params.vehicleId, parsed.data);
+  await syncDriverProfileFromFleet(req.user!.id);
   res.status(201).json({ document: toPublicDocument(doc) });
 });

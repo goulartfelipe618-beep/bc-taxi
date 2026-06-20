@@ -45,17 +45,18 @@ class ApiClient {
   void throwIfError(http.Response res, Map<String, dynamic> data) {
     if (res.statusCode >= 400) {
       final err = data['error'];
-      if (err is String) throw ApiException(err, res.statusCode);
-      throw ApiException('Erro na API (${res.statusCode})', res.statusCode);
+      if (err is String) throw ApiException(err, res.statusCode, extra: data);
+      throw ApiException('Erro na API (${res.statusCode})', res.statusCode, extra: data);
     }
   }
 }
 
 class ApiException implements Exception {
-  ApiException(this.message, this.statusCode);
+  ApiException(this.message, this.statusCode, {this.extra});
 
   final String message;
   final int statusCode;
+  final Map<String, dynamic>? extra;
 
   @override
   String toString() => message;

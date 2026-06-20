@@ -44,6 +44,43 @@ const attempts = new Map<string, MatchAttemptRecord>();
 const candidates = new Map<string, MatchCandidateRecord[]>();
 const offers = new Map<string, RideOfferRecord>();
 
+export function syncMemoryDriverFromFleet(
+  userId: string,
+  attrs: {
+    enabledCategories: string[];
+    wheelchairAccessible: boolean;
+    petReady: boolean;
+    comfortApproved: boolean;
+  },
+) {
+  let driver = drivers.get(userId);
+  if (!driver) {
+    driver = {
+      userId,
+      fullName: 'Motorista',
+      isOnline: false,
+      operationalStatus: 'offline',
+      enabledCategories: attrs.enabledCategories,
+      reputationScore: 4.5,
+      completedRides: 0,
+      acceptanceRate: 1,
+      cancellationRate: 0,
+      onlineMinutesToday: 0,
+      wheelchairAccessible: attrs.wheelchairAccessible,
+      petReady: attrs.petReady,
+      comfortApproved: attrs.comfortApproved,
+      vehicleType: 'economico',
+    };
+  } else {
+    driver.enabledCategories = attrs.enabledCategories;
+    driver.wheelchairAccessible = attrs.wheelchairAccessible;
+    driver.petReady = attrs.petReady;
+    driver.comfortApproved = attrs.comfortApproved;
+  }
+  drivers.set(userId, driver);
+  return driver;
+}
+
 function seedDemoDrivers() {
   if (drivers.size > 0) return;
   const demo = [
@@ -369,16 +406,23 @@ export async function findOnlineDriversPg(): Promise<DriverRecord[]> {
   return result.rows.map((r) => mapDriverRow(r, r.full_name as string));
 }
 
-export async function setDriverOnlinePg(userId: string, online: boolean, lat?: number, lng?: number) {
+export async function setDriverOnlinePg(
+  userId: string,
+  online: boolean,
+  lat?: number,
+  lng?: number,
+  enabledCategories?: string[],
+) {
   await pool.query(
     `UPDATE drivers SET
       is_online = $2,
       operational_status = $3,
       lat = COALESCE($4, lat),
       lng = COALESCE($5, lng),
-      location_updated_at = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE location_updated_at END
+      location_updated_at = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE location_updated_at END,
+      enabled_categories = COALESCE($6, enabled_categories)
      WHERE user_id = $1`,
-    [userId, online, online ? 'online' : 'offline', lat ?? null, lng ?? null],
+    [userId, online, online ? 'online' : 'offline', lat ?? null, lng ?? null, enabledCategories ?? null],
   );
 }
 

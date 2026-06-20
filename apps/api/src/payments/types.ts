@@ -31,10 +31,20 @@ export interface PaymentIntentRecord {
   currency: string;
   provider: string;
   providerRef?: string;
+  idempotencyKey?: string;
   failureReason?: string;
   expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface PixChargePublic {
+  txid: string;
+  status: string;
+  qrCodePayload: string;
+  amountCentavos: number;
+  expiresAt: string;
+  paidAt?: string;
 }
 
 export function toPublicPaymentMethod(m: PaymentMethodRecord) {
@@ -48,7 +58,7 @@ export function toPublicPaymentMethod(m: PaymentMethodRecord) {
   };
 }
 
-export function toPublicPaymentIntent(i: PaymentIntentRecord) {
+export function toPublicPaymentIntent(i: PaymentIntentRecord, pix?: PixChargePublic) {
   return {
     id: i.id,
     rideId: i.rideId,
@@ -57,5 +67,6 @@ export function toPublicPaymentIntent(i: PaymentIntentRecord) {
     amountAuthorizedCentavos: i.amountAuthorizedCentavos,
     amountCapturedCentavos: i.amountCapturedCentavos,
     currency: i.currency,
+    pix,
   };
 }

@@ -32,6 +32,7 @@ export async function migrate() {
     'schema_camada5.sql',
     'schema_camada6.sql',
     'schema_camada7.sql',
+    'schema_camada8.sql',
   ]) {
     const schemaPath = join(schemaDir, file);
     const sql = readFileSync(schemaPath, 'utf8');

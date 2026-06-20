@@ -42,4 +42,8 @@ export const config = {
   defaultPricingRegionId: process.env.DEFAULT_PRICING_REGION_ID ?? '00000000-0000-4000-8000-000000000010',
   defaultServiceRegionId: process.env.DEFAULT_SERVICE_REGION_ID ?? '00000000-0000-4000-8000-000000000020',
   weatherApiEnabled: process.env.WEATHER_API_ENABLED !== 'false',
+  pspProvider: process.env.PSP_PROVIDER ?? 'demo',
+  pspApiUrl: process.env.PSP_API_URL ?? '',
+  pspApiSecret: process.env.PSP_API_SECRET ?? '',
+  pspWebhookSecret: process.env.PSP_WEBHOOK_SECRET ?? '',
 };

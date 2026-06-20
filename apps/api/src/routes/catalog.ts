@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { MATCH_CONFIG, BLOCK_DURATIONS } from '../domain/match.js';
-import { computeQuote, DEFAULT_PRICING_REGION, formatFare } from '../domain/pricing.js';
-import { getDynamicMultiplier } from '../pricing/dynamicPricingService.js';
+import { buildEngineQuote } from '../pricing/pricingEngineService.js';
 import {
   DRIVER_TIER_BENEFITS,
   PASSENGER_TIER_BENEFITS,
   REPUTATION_CONFIG,
 } from '../domain/reputation.js';
 import { getCategory, getPublicCategory, listCategories } from '../domain/rideCategories.js';
+import { DEFAULT_PRICING_REGION, formatFare } from '../domain/pricing.js';
 import type { RideCategoryCode } from '../domain/types.js';
 
 export const categoriesRouter = Router();
@@ -35,9 +35,14 @@ const quoteSchema = z.object({
   distanceKm: z.number().positive(),
   durationMin: z.number().positive(),
   dynamicMultiplier: z.number().min(1).optional(),
+  trafficIndex: z.number().min(0).optional(),
   tollsCentavos: z.number().min(0).optional(),
   airportFeeCentavos: z.number().min(0).optional(),
   addonsCentavos: z.number().min(0).optional(),
+  fromLat: z.number().optional(),
+  fromLng: z.number().optional(),
+  toLat: z.number().optional(),
+  toLng: z.number().optional(),
 });
 
 quotesRouter.post('/', async (req, res) => {
@@ -52,17 +57,19 @@ quotesRouter.post('/', async (req, res) => {
     return;
   }
 
-  const dynamicMultiplier =
-    parsed.data.dynamicMultiplier ?? (await getDynamicMultiplier(parsed.data.categoryCode as RideCategoryCode));
-
-  const quote = computeQuote({
+  const quote = await buildEngineQuote({
     categoryCode: parsed.data.categoryCode as RideCategoryCode,
     distanceKm: parsed.data.distanceKm,
     durationMin: parsed.data.durationMin,
-    dynamicMultiplier,
+    dynamicMultiplier: parsed.data.dynamicMultiplier,
+    trafficIndex: parsed.data.trafficIndex,
     tollsCentavos: parsed.data.tollsCentavos,
     airportFeeCentavos: parsed.data.airportFeeCentavos,
     addonsCentavos: parsed.data.addonsCentavos,
+    fromLat: parsed.data.fromLat,
+    fromLng: parsed.data.fromLng,
+    toLat: parsed.data.toLat,
+    toLng: parsed.data.toLng,
   });
   res.json({
     ...quote,

@@ -2,8 +2,6 @@ import { getCategory } from '../domain/rideCategories.js';
 import {
   clampDynamic,
   computeDynamicMultiplierRaw,
-  computeQuote,
-  DEFAULT_PRICING_REGION,
 } from '../domain/pricing.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { config } from '../config.js';
@@ -185,11 +183,8 @@ export async function quoteWithDynamicPricing(
   categoryCode: RideCategoryCode,
   distanceKm: number,
   durationMin: number,
-  context?: { lat?: number; lng?: number },
+  context?: { lat?: number; lng?: number; toLat?: number; toLng?: number; trafficIndex?: number },
 ) {
-  const multiplier = await getDynamicMultiplier(categoryCode, config.defaultPricingRegionId, context);
-  return computeQuote(
-    { categoryCode, distanceKm, durationMin, dynamicMultiplier: multiplier },
-    DEFAULT_PRICING_REGION,
-  );
+  const { quoteWithEngine } = await import('./pricingEngineService.js');
+  return quoteWithEngine(categoryCode, distanceKm, durationMin, context);
 }

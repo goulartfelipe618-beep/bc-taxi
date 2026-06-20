@@ -178,7 +178,10 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
   }
 
   const amount = ride.estimatedFareCentavos ?? undefined;
-  await captureRidePayment(rideId, amount);
+  await captureRidePayment(rideId, amount, {
+    categoryCode: ride.categoryCode as import('../domain/types.js').RideCategoryCode,
+    driverUserId: driverId,
+  });
 
   const completed = await updateLifecycle(rideId, {
     status: 'COMPLETED',

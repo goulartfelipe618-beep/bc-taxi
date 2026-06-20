@@ -83,6 +83,7 @@ function mapIntentRow(row: Record<string, unknown>): PaymentIntentRecord {
     currency: row.currency as string,
     provider: row.provider as string,
     providerRef: (row.provider_ref as string) ?? undefined,
+    idempotencyKey: (row.idempotency_key as string) ?? undefined,
     failureReason: (row.failure_reason as string) ?? undefined,
     expiresAt: row.expires_at ? new Date(row.expires_at as string) : undefined,
     createdAt: new Date(row.created_at as string),
@@ -132,9 +133,16 @@ export async function createPaymentIntent(params: {
   paymentMethodType: PaymentMethodType;
   amountCentavos: number;
   rideId?: string;
+  status?: PaymentIntentRecord['status'];
+  provider?: string;
+  providerRef?: string;
+  idempotencyKey?: string;
+  expiresAt?: Date;
 }): Promise<PaymentIntentRecord> {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+  const expiresAt = params.expiresAt ?? new Date(now.getTime() + 30 * 60 * 1000);
+  const status = params.status ?? 'authorized';
+  const provider = params.provider ?? 'demo';
 
   if (useMemoryPayments()) {
     const intent: PaymentIntentRecord = {
@@ -143,12 +151,13 @@ export async function createPaymentIntent(params: {
       userId: params.userId,
       paymentMethodId: params.paymentMethodId,
       paymentMethodType: params.paymentMethodType,
-      status: 'authorized',
+      status,
       amountAuthorizedCentavos: params.amountCentavos,
       amountCapturedCentavos: 0,
       currency: 'BRL',
-      provider: 'demo',
-      providerRef: `demo-${randomUUID().slice(0, 8)}`,
+      provider,
+      providerRef: params.providerRef ?? `demo-${randomUUID().slice(0, 8)}`,
+      idempotencyKey: params.idempotencyKey,
       expiresAt,
       createdAt: now,
       updatedAt: now,
@@ -160,19 +169,30 @@ export async function createPaymentIntent(params: {
   const result = await pool.query(
     `INSERT INTO payment_intents (
       ride_id, user_id, payment_method_id, payment_method_type, status,
-      amount_authorized_centavos, currency, provider, provider_ref, expires_at
-    ) VALUES ($1,$2,$3,$4,'authorized',$5,'BRL','demo',$6,$7) RETURNING *`,
+      amount_authorized_centavos, currency, provider, provider_ref, expires_at, idempotency_key
+    ) VALUES ($1,$2,$3,$4,$5,$6,'BRL',$7,$8,$9,$10) RETURNING *`,
     [
       params.rideId ?? null,
       params.userId,
       params.paymentMethodId ?? null,
       params.paymentMethodType,
+      status,
       params.amountCentavos,
-      `demo-${randomUUID().slice(0, 8)}`,
+      provider,
+      params.providerRef ?? null,
       expiresAt,
+      params.idempotencyKey ?? null,
     ],
   );
   return mapIntentRow(result.rows[0]);
+}
+
+export async function getPaymentIntentByIdempotencyKey(key: string): Promise<PaymentIntentRecord | null> {
+  if (useMemoryPayments()) {
+    return [...intents.values()].find((i) => i.idempotencyKey === key) ?? null;
+  }
+  const result = await pool.query(`SELECT * FROM payment_intents WHERE idempotency_key = $1`, [key]);
+  return result.rowCount ? mapIntentRow(result.rows[0]) : null;
 }
 
 export async function getPaymentIntent(id: string): Promise<PaymentIntentRecord | null> {

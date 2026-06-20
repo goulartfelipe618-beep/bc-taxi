@@ -98,3 +98,40 @@ export async function blockDriverCancelledPassengerRedispatch(
     metadata: { escalationLevel },
   });
 }
+
+export async function countPairDriverCancelBlocks(
+  passengerId: string,
+  driverId: string,
+  withinDays: number,
+): Promise<number> {
+  if (config.useMemoryDb) {
+    const { memoryBlockStore } = await import('../stores/memoryMatchStore.js');
+    return memoryBlockStore.blocks.filter(
+      (b) =>
+        b.passengerId === passengerId &&
+        b.driverId === driverId &&
+        ['DRIVER_CANCEL_PASSENGER_REDISPATCH', 'PAIR_RISK_BLOCK'].includes(b.blockType),
+    ).length;
+  }
+
+  const result = await pool.query(
+    `SELECT COUNT(*)::int AS c FROM ride_match_blocks
+     WHERE passenger_id = $1 AND driver_id = $2
+       AND block_type IN ('DRIVER_CANCEL_PASSENGER_REDISPATCH', 'PAIR_RISK_BLOCK')
+       AND reason_code = 'driver_cancel_after_accept'
+       AND created_at > NOW() - ($3::text || ' days')::interval`,
+    [passengerId, driverId, withinDays],
+  );
+  return result.rows[0]?.c ?? 0;
+}
+
+export async function resolveDriverCancelEscLevel(
+  passengerId: string,
+  driverId: string,
+): Promise<1 | 2 | 3> {
+  const in7 = await countPairDriverCancelBlocks(passengerId, driverId, 7);
+  const in30 = await countPairDriverCancelBlocks(passengerId, driverId, 30);
+  if (in30 >= 3) return 3;
+  if (in7 >= 1) return 2;
+  return 1;
+}

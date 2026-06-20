@@ -51,6 +51,18 @@ export async function findReview(
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
+export async function listReviewsForUser(reviewedUserId: string): Promise<RideReviewRecord[]> {
+  if (useMemory()) {
+    return [...reviews.values()].filter((r) => r.reviewedUserId === reviewedUserId);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT * FROM ride_reviews WHERE reviewed_user_id = $1 ORDER BY created_at DESC`,
+    [reviewedUserId],
+  );
+  return rows.map(mapRow);
+}
+
 export async function insertReview(input: Omit<RideReviewRecord, 'id' | 'createdAt'>): Promise<RideReviewRecord> {
   if (useMemory()) {
     const record: RideReviewRecord = {

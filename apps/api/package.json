@@ -11,7 +11,8 @@
     "test:lifecycle": "tsx scripts/test-lifecycle.ts",
     "test:flow": "tsx scripts/test-flow.ts",
     "test:layer2": "tsx scripts/test-layer2.ts",
-    "test:mapbox": "tsx scripts/test-mapbox.ts"
+    "test:mapbox": "tsx scripts/test-mapbox.ts",
+    "test:camada3": "tsx scripts/test-camada3.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

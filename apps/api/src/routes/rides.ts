@@ -8,6 +8,7 @@ import {
   acceptOffer,
   cancelRide,
   createRideRequest,
+  driverCancelRide,
   getDriverPendingOffers,
   getRide,
   rejectOffer,
@@ -15,7 +16,7 @@ import {
 } from '../match/matchService.js';
 import type { RideRecord, RideStatus } from '../match/types.js';
 import { DEMO_PAYMENT_METHOD_IDS } from '../payments/paymentStore.js';
-import { assertUserNotBlocked, checkGpsIntegrity } from '../fraud/fraudService.js';
+import { assertUserNotBlocked, checkGpsIntegrity, recordFraudSignal } from '../fraud/fraudService.js';
 import {
   attachIntentToRide,
   authorizeRidePayment,
@@ -29,6 +30,7 @@ import {
   verifyStartCode,
 } from '../ride/lifecycleService.js';
 import { submitRideReview } from '../reviews/reviewService.js';
+import { getPassengerReputation } from '../reviews/reputationService.js';
 import { getPlainCodesForTest } from '../ride/codeStore.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 
@@ -160,7 +162,8 @@ ridesRouter.post('/', async (req, res) => {
     }
   }
 
-  const matched = await startMatching(ride.id);
+  const passengerRep = await getPassengerReputation(req.user!.id);
+  const matched = await startMatching(ride.id, passengerRep);
   const finalRide = matched ?? ride;
   res.status(201).json({ ride: toPublicRide(finalRide), paymentIntentId });
 });
@@ -196,6 +199,29 @@ ridesRouter.post('/:id/cancel', async (req, res) => {
     res.status(404).json({ error: 'Corrida não encontrada ou não cancelável' });
     return;
   }
+  await cancelRidePayment(ride.id);
+  res.json({ ride: toPublicRide(ride) });
+});
+
+ridesRouter.post('/:id/driver-cancel', async (req, res) => {
+  if (req.user!.role !== 'driver') {
+    res.status(403).json({ error: 'Somente motoristas' });
+    return;
+  }
+
+  const ride = await driverCancelRide(req.params.id, req.user!.id, req.body?.reason);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada ou não cancelável pelo motorista' });
+    return;
+  }
+
+  void recordFraudSignal({
+    userId: req.user!.id,
+    rideId: ride.id,
+    signalType: 'RAPID_CANCEL',
+    metadata: { cancelledBy: 'driver' },
+  }).catch(() => undefined);
+
   await cancelRidePayment(ride.id);
   res.json({ ride: toPublicRide(ride) });
 });

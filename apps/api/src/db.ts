@@ -25,6 +25,7 @@ export async function migrate() {
     'schema_payments.sql',
     'schema_lifecycle.sql',
     'schema_layer2.sql',
+    'schema_camada3.sql',
   ]) {
     const schemaPath = join(schemaDir, file);
     const sql = readFileSync(schemaPath, 'utf8');

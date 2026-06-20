@@ -7,8 +7,9 @@ export function getRedis(): Redis | null {
   if (!config.redisUrl) return null;
   if (!redis) {
     redis = new Redis(config.redisUrl, {
-      maxRetriesPerRequest: 2,
+      maxRetriesPerRequest: null,
       lazyConnect: true,
+      enableOfflineQueue: false,
     });
     redis.on('error', (err) => console.warn('[redis]', err.message));
   }
@@ -48,8 +49,13 @@ export async function redisPublish(channel: string, message: string): Promise<vo
 
 export function redisSubscribe(channel: string, handler: (message: string) => void): (() => void) | null {
   if (!config.redisUrl) return null;
-  const sub = new Redis(config.redisUrl, { maxRetriesPerRequest: 2 });
-  void sub.subscribe(channel);
+  const sub = new Redis(config.redisUrl, {
+    maxRetriesPerRequest: null,
+    lazyConnect: true,
+    enableOfflineQueue: false,
+  });
+  sub.on('error', (err) => console.warn('[redis-sub]', err.message));
+  void sub.subscribe(channel).catch((err) => console.warn('[redis-sub] subscribe failed:', err.message));
   sub.on('message', (_ch, msg) => handler(msg));
   return () => {
     void sub.unsubscribe(channel);

@@ -154,6 +154,20 @@ export async function cancelRidePg(rideId: string, passengerId: string, reason?:
   }
 }
 
+export async function cancelRideByDriverPg(rideId: string, driverId: string, reason?: string) {
+  const result = await pool.query(
+    `UPDATE rides SET status = 'CANCELLED', cancelled_at = NOW(), cancel_reason = $3, updated_at = NOW(),
+            driver_id = NULL
+     WHERE id = $1 AND driver_id = $2 AND status IN ('DRIVER_ASSIGNED', 'DRIVER_ARRIVED')
+     RETURNING id, passenger_id`,
+    [rideId, driverId, reason ?? null],
+  );
+  if (result.rowCount) {
+    await expirePendingOffersForRidePg(rideId);
+    await releaseDriverPg(driverId);
+  }
+}
+
 export async function updateRideLifecyclePg(
   rideId: string,
   patch: {

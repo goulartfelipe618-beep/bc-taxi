@@ -11,6 +11,7 @@ import {
 } from '../stores/memoryMatchStore.js';
 import {
   cancelRidePg,
+  cancelRideByDriverPg,
   createAttemptPg,
   createOfferPg,
   expirePendingOffersForRidePg,
@@ -32,6 +33,11 @@ import {
 } from './eligibility.js';
 import type { PassengerContext, RideRecord, RideRequestInput, ScoredCandidate } from './types.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import {
+  blockDriverCancelledPassengerRedispatch,
+  blockPassengerCancelledDriver,
+  resolveDriverCancelEscLevel,
+} from './blockService.js';
 
 const activeMatchLoops = new Set<string>();
 
@@ -384,10 +390,21 @@ export async function getDriverPendingOffers(driverId: string) {
 export async function cancelRide(rideId: string, passengerId: string, reason?: string) {
   const ride = await getRide(rideId);
   if (!ride || ride.passengerId !== passengerId) return null;
+
+  const priorStatus = ride.status;
+  const driverId = ride.driverId;
+  const shouldBlock =
+    Boolean(driverId) && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVED'].includes(priorStatus);
+
   if (useMemory()) {
     await memoryMatchStore.expirePendingOffersForRide(rideId);
-    const cancelled = await memoryMatchStore.updateRideStatus(rideId, 'CANCELLED', { cancelReason: reason });
+    const cancelled = await memoryMatchStore.updateRideStatus(rideId, 'CANCELLED', {
+      cancelReason: reason ?? 'passenger_cancel',
+    });
     if (cancelled) {
+      if (shouldBlock && driverId) {
+        await blockPassengerCancelledDriver(passengerId, driverId, rideId);
+      }
       void emitEvent('RIDE_CANCELLED', 'ride', rideId, { reason }, {
         rideId,
         userIds: [passengerId],
@@ -396,13 +413,58 @@ export async function cancelRide(rideId: string, passengerId: string, reason?: s
     }
     return cancelled;
   }
-  await cancelRidePg(rideId, passengerId, reason);
+
+  await cancelRidePg(rideId, passengerId, reason ?? 'passenger_cancel');
+  if (shouldBlock && driverId) {
+    await blockPassengerCancelledDriver(passengerId, driverId, rideId);
+  }
   const updated = await getRide(rideId);
   if (updated) {
     void emitEvent('RIDE_CANCELLED', 'ride', rideId, { reason }, {
       rideId,
       userIds: [passengerId],
       driverId: updated.driverId,
+    });
+  }
+  return updated;
+}
+
+export async function driverCancelRide(rideId: string, driverId: string, reason?: string) {
+  const ride = await getRide(rideId);
+  if (!ride || ride.driverId !== driverId) return null;
+  if (!['DRIVER_ASSIGNED', 'DRIVER_ARRIVED'].includes(ride.status)) return null;
+
+  const escalation = await resolveDriverCancelEscLevel(ride.passengerId, driverId);
+
+  if (useMemory()) {
+    await memoryMatchStore.expirePendingOffersForRide(rideId);
+    const cancelled = await memoryMatchStore.updateRideStatus(rideId, 'CANCELLED', {
+      cancelReason: reason ?? 'driver_cancel',
+    });
+    if (cancelled) {
+      await blockDriverCancelledPassengerRedispatch(
+        ride.passengerId,
+        driverId,
+        rideId,
+        escalation,
+      );
+      void emitEvent('RIDE_CANCELLED', 'ride', rideId, { reason, cancelledBy: 'driver' }, {
+        rideId,
+        userIds: [ride.passengerId, driverId],
+        driverId,
+      });
+    }
+    return cancelled;
+  }
+
+  await cancelRideByDriverPg(rideId, driverId, reason ?? 'driver_cancel');
+  await blockDriverCancelledPassengerRedispatch(ride.passengerId, driverId, rideId, escalation);
+  const updated = await getRide(rideId);
+  if (updated) {
+    void emitEvent('RIDE_CANCELLED', 'ride', rideId, { reason, cancelledBy: 'driver' }, {
+      rideId,
+      userIds: [ride.passengerId, driverId],
+      driverId,
     });
   }
   return updated;

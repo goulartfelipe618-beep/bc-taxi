@@ -1,6 +1,7 @@
 import { getRide } from '../match/matchService.js';
 import { emitEvent } from '../realtime/eventBus.js';
 import { findReview, insertReview, toPublicReview } from './reviewStore.js';
+import { recalculateUserReputation } from './reputationService.js';
 
 export interface SubmitReviewInput {
   rideId: string;
@@ -55,6 +56,8 @@ export async function submitRideReview(input: SubmitReviewInput) {
     { reviewId: review.id, stars: input.stars },
     { userIds: [input.reviewerUserId, reviewedUserId], rideId: input.rideId },
   );
+
+  void recalculateUserReputation(reviewedUserId, reviewedRole);
 
   return toPublicReview(review);
 }

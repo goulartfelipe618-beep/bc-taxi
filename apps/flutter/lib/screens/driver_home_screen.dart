@@ -255,6 +255,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _activeRide = ride;
         _offers = [];
       });
+      await _locationTracker?.start(rideId: ride.id);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));

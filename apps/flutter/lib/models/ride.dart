@@ -92,12 +92,110 @@ class RideRecord {
   }
 }
 
+class DriverLocation {
+  const DriverLocation({required this.lat, required this.lng, this.updatedAt, this.heading});
+
+  final double lat;
+  final double lng;
+  final String? updatedAt;
+  final double? heading;
+
+  factory DriverLocation.fromJson(Map<String, dynamic> json) {
+    return DriverLocation(
+      lat: (json['lat'] as num).toDouble(),
+      lng: (json['lng'] as num).toDouble(),
+      updatedAt: json['updatedAt'] as String?,
+      heading: json['heading'] != null ? (json['heading'] as num).toDouble() : null,
+    );
+  }
+}
+
+class RideEta {
+  const RideEta({required this.seconds, required this.label, required this.target});
+
+  final int seconds;
+  final String label;
+  final String target;
+
+  factory RideEta.fromJson(Map<String, dynamic> json) {
+    return RideEta(
+      seconds: json['seconds'] as int? ?? 0,
+      label: json['label'] as String? ?? '—',
+      target: json['target'] as String? ?? 'pickup',
+    );
+  }
+}
+
+class AssignedDriver {
+  const AssignedDriver({
+    required this.userId,
+    required this.fullName,
+    required this.rating,
+    this.vehiclePlate,
+    this.vehicleMake,
+    this.vehicleModel,
+  });
+
+  final String userId;
+  final String fullName;
+  final double rating;
+  final String? vehiclePlate;
+  final String? vehicleMake;
+  final String? vehicleModel;
+
+  String get vehicleLabel {
+    final parts = [vehicleMake, vehicleModel].whereType<String>().where((s) => s.isNotEmpty);
+    final desc = parts.join(' ');
+    if (vehiclePlate != null && vehiclePlate!.isNotEmpty) {
+      return desc.isEmpty ? vehiclePlate! : '$desc · $vehiclePlate';
+    }
+    return desc.isEmpty ? 'Veículo' : desc;
+  }
+
+  factory AssignedDriver.fromJson(Map<String, dynamic> json) {
+    return AssignedDriver(
+      userId: json['userId'] as String,
+      fullName: json['fullName'] as String,
+      rating: (json['rating'] as num?)?.toDouble() ?? 5,
+      vehiclePlate: json['vehiclePlate'] as String?,
+      vehicleMake: json['vehicleMake'] as String?,
+      vehicleModel: json['vehicleModel'] as String?,
+    );
+  }
+}
+
+class RideTracking {
+  const RideTracking({
+    required this.driver,
+    this.driverLocation,
+    this.eta,
+    this.distanceM,
+  });
+
+  final AssignedDriver driver;
+  final DriverLocation? driverLocation;
+  final RideEta? eta;
+  final int? distanceM;
+
+  factory RideTracking.fromJson(Map<String, dynamic> json) {
+    return RideTracking(
+      driver: AssignedDriver.fromJson(json['driver'] as Map<String, dynamic>),
+      driverLocation: json['driverLocation'] != null
+          ? DriverLocation.fromJson(json['driverLocation'] as Map<String, dynamic>)
+          : null,
+      eta: json['eta'] != null ? RideEta.fromJson(json['eta'] as Map<String, dynamic>) : null,
+      distanceM: json['distanceM'] as int?,
+    );
+  }
+}
+
 class RideDetail {
-  const RideDetail({required this.ride, this.verification, this.startCodes});
+  const RideDetail({required this.ride, this.verification, this.startCodes, this.tracking});
 
   final RideRecord ride;
   final RideVerification? verification;
   final StartCodes? startCodes;
+  final RideTracking? tracking;
 
   factory RideDetail.fromJson(Map<String, dynamic> json) {
     return RideDetail(
@@ -107,6 +205,9 @@ class RideDetail {
           : null,
       startCodes: json['startCodes'] != null
           ? StartCodes.fromJson(json['startCodes'] as Map<String, dynamic>)
+          : null,
+      tracking: json['tracking'] != null
+          ? RideTracking.fromJson(json['tracking'] as Map<String, dynamic>)
           : null,
     );
   }

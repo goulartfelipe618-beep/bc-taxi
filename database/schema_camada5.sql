@@ -1,0 +1,2 @@
+-- Camada 5: tracking de corrida ativa (guia §719, §816-817)
+-- Sem DDL novo: dados vêm de drivers, users, vehicles e location samples (Camada 4).

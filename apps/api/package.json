@@ -16,7 +16,8 @@
     "test:saved-places": "tsx scripts/test-saved-places.ts",
     "test:fleet": "tsx scripts/test-fleet.ts",
     "bootstrap:drivers": "tsx scripts/bootstrap-drivers-fleet.ts",
-    "test:camada4": "tsx scripts/test-camada4.ts"
+    "test:camada4": "tsx scripts/test-camada4.ts",
+    "test:camada5": "tsx scripts/test-camada5.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

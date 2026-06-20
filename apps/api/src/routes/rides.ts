@@ -31,7 +31,11 @@ import {
 } from '../ride/lifecycleService.js';
 import { submitRideReview } from '../reviews/reviewService.js';
 import { getPassengerReputation } from '../reviews/reputationService.js';
-import { getPlainCodesForTest } from '../ride/codeStore.js';
+import {
+  getRideTracking,
+  resolveDriverActiveRideId,
+  toPublicTracking,
+} from '../ride/rideTrackingService.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
 import {
@@ -189,6 +193,7 @@ ridesRouter.get('/:id', async (req, res) => {
     return;
   }
   const verification = await getRideVerification(ride.id);
+  const tracking = await getRideTracking(ride);
   let startCodes: { yours: string; partner: string } | undefined;
   if (useMemory()) {
     const plain = getPlainCodesForTest(ride.id);
@@ -200,7 +205,12 @@ ridesRouter.get('/:id', async (req, res) => {
       }
     }
   }
-  res.json({ ride: toPublicRide(ride), verification, ...(startCodes ? { startCodes } : {}) });
+  res.json({
+    ride: toPublicRide(ride),
+    verification,
+    ...(tracking ? { tracking: toPublicTracking(tracking) } : {}),
+    ...(startCodes ? { startCodes } : {}),
+  });
 });
 
 ridesRouter.post('/:id/cancel', async (req, res) => {

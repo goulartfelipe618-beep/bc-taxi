@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { pool } from '../db.js';
 import { checkGpsIntegrity } from '../fraud/fraudService.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import { resolveDriverActiveRideId } from '../ride/rideTrackingService.js';
 import { memoryMatchStore, useMemory } from '../stores/memoryMatchStore.js';
 
 export const LOCATION_SLA_SECONDS = 120;
@@ -149,13 +150,17 @@ export async function updateDriverLocation(input: {
     const lastSample = lastSampleAtByDriver.get(input.driverId) ?? 0;
     if (Date.now() - lastSample >= LOCATION_SAMPLE_MIN_INTERVAL_MS) {
       lastSampleAtByDriver.set(input.driverId, Date.now());
-      await pool.query(
-        `INSERT INTO driver_location_samples (driver_id, session_id, lat, lng, heading)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [input.driverId, sessionId, input.lat, input.lng, input.heading ?? null],
-      );
+      if (!useMemory()) {
+        await pool.query(
+          `INSERT INTO driver_location_samples (driver_id, session_id, lat, lng, heading)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [input.driverId, sessionId, input.lat, input.lng, input.heading ?? null],
+        );
+      }
     }
   }
+
+  const rideId = input.rideId ?? (await resolveDriverActiveRideId(input.driverId));
 
   await emitEvent(
     'DRIVER_LOCATION_UPDATED',
@@ -165,9 +170,9 @@ export async function updateDriverLocation(input: {
       lat: input.lat,
       lng: input.lng,
       heading: input.heading,
-      rideId: input.rideId,
+      rideId,
     },
-    { driverId: input.driverId, rideId: input.rideId },
+    { driverId: input.driverId, rideId },
   );
 
   return { ok: true, sessionId };

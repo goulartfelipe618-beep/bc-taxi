@@ -9,6 +9,7 @@ import '../../../services/realtime_service.dart';
 import '../../../services/ride_service.dart';
 import '../../../theme/passenger_theme.dart';
 import '../../../widgets/passenger/ride_review_sheet.dart';
+import 'ride_tracking_map.dart';
 
 class RideActiveScreen extends StatefulWidget {
   const RideActiveScreen({
@@ -33,12 +34,16 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   late final RealtimeService _realtime = RealtimeService(token: widget.token);
   Timer? _pollTimer;
   RideDetail? _detail;
+  DriverLocation? _liveDriverLocation;
+  DateTime? _lastLocationUiUpdate;
   String? _error;
   bool _reviewShown = false;
   final _codeController = TextEditingController();
   bool _verifying = false;
 
   RideRecord? get _ride => _detail?.ride;
+  RideTracking? get _tracking => _detail?.tracking;
+  DriverLocation? get _driverLocation => _liveDriverLocation ?? _tracking?.driverLocation;
 
   @override
   void initState() {
@@ -51,9 +56,37 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   }
 
   void _onRealtimeEvent(Map<String, dynamic> event) {
-    final rideId = eventRideId(event);
-    if (rideId == null || rideId != widget.rideId) return;
-    _poll();
+    final type = eventType(event);
+    final rideId = event['rideId'] as String? ?? eventRideId(event);
+    if (rideId != null && rideId != widget.rideId) return;
+
+    if (type == 'DRIVER_LOCATION_UPDATED') {
+      final payload = event['payload'] as Map<String, dynamic>? ?? event;
+      final lat = payload['lat'];
+      final lng = payload['lng'];
+      if (lat is num && lng is num) {
+        final now = DateTime.now();
+        if (_lastLocationUiUpdate != null &&
+            now.difference(_lastLocationUiUpdate!) < const Duration(seconds: 8)) {
+          return;
+        }
+        _lastLocationUiUpdate = now;
+        setState(() {
+          _liveDriverLocation = DriverLocation(
+            lat: lat.toDouble(),
+            lng: lng.toDouble(),
+            updatedAt: now.toIso8601String(),
+            heading: payload['heading'] is num ? (payload['heading'] as num).toDouble() : null,
+          );
+        });
+      }
+      return;
+    }
+
+    if (type != null &&
+        (type.startsWith('RIDE_') || type == 'DRIVER_LOCATION_UPDATED')) {
+      _poll();
+    }
   }
 
   @override
@@ -132,59 +165,105 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   @override
   Widget build(BuildContext context) {
     final ride = _ride;
+    final tracking = _tracking;
+    final showMap = ride != null &&
+        _driverLocation != null &&
+        ['DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].contains(ride.status);
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                  ),
+                  Expanded(
+                    child: Text(
+                      ride?.statusLabel ?? 'A carregar…',
+                      style: PassengerTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                ],
+              ),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              ),
+            if (showMap) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: SizedBox(
+                  height: 220,
+                  child: RideTrackingMap(ride: ride!, driverLocation: _driverLocation),
                 ),
               ),
-              if (_error != null) ...[
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 8),
-              ],
-              const Spacer(),
-              _StatusIcon(status: ride?.status),
-              const SizedBox(height: 16),
-              Text(
-                ride?.statusLabel ?? 'A carregar…',
-                style: PassengerTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _subtitle(ride),
-                style: PassengerTheme.caption,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              if (ride != null) _buildStatusCard(ride),
-              const Spacer(),
-              if (ride?.canCancel == true)
-                OutlinedButton(
-                  onPressed: _cancel,
-                  child: const Text('Cancelar corrida'),
-                ),
-              if (ride?.status == 'COMPLETED')
-                FilledButton(
-                  onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-                  style: FilledButton.styleFrom(backgroundColor: BcColors.black),
-                  child: const Text('Concluir'),
-                ),
+              const SizedBox(height: 12),
             ],
-          ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _StatusIcon(status: ride?.status),
+                    const SizedBox(height: 12),
+                    Text(
+                      _headline(ride, tracking),
+                      style: PassengerTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _subtitle(ride),
+                      style: PassengerTheme.caption,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    if (tracking != null) _driverCard(tracking),
+                    const SizedBox(height: 16),
+                    if (ride != null) _buildStatusCard(ride, tracking),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (ride?.canCancel == true)
+                    OutlinedButton(onPressed: _cancel, child: const Text('Cancelar corrida')),
+                  if (ride?.status == 'COMPLETED')
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                      style: FilledButton.styleFrom(backgroundColor: BcColors.black),
+                      child: const Text('Concluir'),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  String _headline(RideRecord? ride, RideTracking? tracking) {
+    if (tracking?.eta != null) {
+      return tracking!.eta!.label;
+    }
+    return ride?.statusLabel ?? 'A procurar motorista…';
   }
 
   String _subtitle(RideRecord? ride) {
@@ -194,7 +273,9 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
       case 'OFFERING':
         return 'A procurar motorista para ${widget.destination}';
       case 'DRIVER_ASSIGNED':
-        return '${widget.categoryName} · a caminho do local de recolha';
+        return tracking?.eta?.target == 'pickup'
+            ? 'Motorista a caminho do local de recolha'
+            : '${widget.categoryName} · a caminho do local de recolha';
       case 'DRIVER_ARRIVED':
         return 'Motorista no local · confirme o código';
       case 'IN_PROGRESS':
@@ -208,8 +289,52 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
     }
   }
 
-  Widget _buildStatusCard(RideRecord ride) {
-    if (ride.status == 'DRIVER_ARRIVED' || (ride.status == 'IN_PROGRESS' && _detail?.verification?.driverVerified == false)) {
+  Widget _driverCard(RideTracking tracking) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: BcColors.grayLight,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.black,
+            child: Text(
+              tracking.driver.fullName.isNotEmpty ? tracking.driver.fullName[0].toUpperCase() : '?',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tracking.driver.fullName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                Text(tracking.driver.vehicleLabel, style: PassengerTheme.caption),
+                Text('★ ${tracking.driver.rating.toStringAsFixed(1)}', style: PassengerTheme.caption),
+              ],
+            ),
+          ),
+          if (tracking.eta != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(tracking.eta!.label, style: PassengerTheme.titleMedium.copyWith(fontSize: 22)),
+                Text(
+                  tracking.eta!.target == 'dropoff' ? 'até destino' : 'até recolha',
+                  style: PassengerTheme.caption,
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(RideRecord ride, RideTracking? tracking) {
+    if (ride.status == 'DRIVER_ARRIVED' ||
+        (ride.status == 'IN_PROGRESS' && _detail?.verification?.driverVerified == false)) {
       return _codeEntryCard();
     }
     return Container(
@@ -219,7 +344,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
         children: [
           Text(_cardTitle(ride.status), style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text(_cardValue(ride), style: PassengerTheme.titleMedium.copyWith(fontSize: 28)),
+          Text(_cardValue(ride, tracking), style: PassengerTheme.titleMedium.copyWith(fontSize: 28)),
         ],
       ),
     );
@@ -292,15 +417,14 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
     }
   }
 
-  String _cardValue(RideRecord ride) {
+  String _cardValue(RideRecord ride, RideTracking? tracking) {
     switch (ride.status) {
       case 'REQUESTED':
       case 'OFFERING':
-        return '4 min';
+        return '…';
       case 'DRIVER_ASSIGNED':
-        return '4 min';
       case 'IN_PROGRESS':
-        return ride.dropoffAddress ?? widget.destination;
+        return tracking?.eta?.label ?? '…';
       case 'COMPLETED':
         return ride.fareLabel;
       default:
@@ -324,7 +448,7 @@ class _StatusIcon extends StatelessWidget {
       'DRIVER_ASSIGNED' => Icons.directions_car_outlined,
       _ => Icons.hourglass_top_outlined,
     };
-    return Icon(icon, size: 72);
+    return Icon(icon, size: 56);
   }
 }
 

@@ -12,7 +12,7 @@ import { placesRouter, routesRouter } from './routes/mapbox.js';
 import { paymentsRouter } from './routes/payments.js';
 import { pricingRouter } from './routes/pricing.js';
 import { driverRouter, ridesRouter } from './routes/rides.js';
-import { driverFleetRouter } from './routes/driverFleet.js';
+import { reputationRouter } from './routes/reputation.js';
 import { startHeartbeatJanitor } from './driver/driverLocationService.js';
 
 async function main() {
@@ -46,6 +46,7 @@ async function main() {
   app.use('/v1/payments', paymentsRouter);
   app.use('/v1/rides', ridesRouter);
   app.use('/v1/driver', driverRouter);
+  app.use('/v1/reputation', reputationRouter);
   app.use('/v1/driver/fleet', driverFleetRouter);
 
   app.use((_req, res) => {

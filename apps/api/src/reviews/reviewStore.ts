@@ -11,10 +11,79 @@ export interface RideReviewRecord {
   reviewedRole: 'passenger' | 'driver';
   stars: number;
   comment?: string;
+  tags?: string[];
   createdAt: Date;
 }
 
+export interface ReviewTagRecord {
+  code: string;
+  label: string;
+  appliesTo: 'driver' | 'passenger' | 'both';
+  isPositive: boolean;
+}
+
+const tagCatalog: ReviewTagRecord[] = [
+  { code: 'pontualidade', label: 'Pontualidade', appliesTo: 'both', isPositive: true },
+  { code: 'cordialidade', label: 'Cordialidade', appliesTo: 'both', isPositive: true },
+  { code: 'direcao', label: 'Direção segura', appliesTo: 'driver', isPositive: true },
+  { code: 'limpeza', label: 'Limpeza', appliesTo: 'driver', isPositive: true },
+  { code: 'respeito', label: 'Respeito', appliesTo: 'both', isPositive: true },
+  { code: 'seguranca', label: 'Segurança', appliesTo: 'both', isPositive: true },
+  { code: 'comportamento', label: 'Bom comportamento', appliesTo: 'both', isPositive: true },
+  { code: 'localizacao_incorreta', label: 'Localização incorreta', appliesTo: 'both', isPositive: false },
+  { code: 'atraso', label: 'Atraso', appliesTo: 'both', isPositive: false },
+  { code: 'bagagem', label: 'Bagagem', appliesTo: 'both', isPositive: true },
+  { code: 'pet', label: 'Pet', appliesTo: 'both', isPositive: true },
+  { code: 'pcd', label: 'Atendimento PCD', appliesTo: 'driver', isPositive: true },
+  { code: 'pagamento', label: 'Pagamento', appliesTo: 'passenger', isPositive: true },
+  { code: 'rota', label: 'Rota', appliesTo: 'driver', isPositive: true },
+];
+
+const reviewTags = new Map<string, Set<string>>();
 const reviews = new Map<string, RideReviewRecord>();
+
+export async function listReviewTags(): Promise<ReviewTagRecord[]> {
+  if (useMemory()) return tagCatalog;
+
+  const { rows } = await pool.query(
+    `SELECT code, label, applies_to, is_positive FROM review_tags ORDER BY label`,
+  );
+  if (rows.length === 0) return tagCatalog;
+  return rows.map((row) => ({
+    code: row.code as string,
+    label: row.label as string,
+    appliesTo: row.applies_to as ReviewTagRecord['appliesTo'],
+    isPositive: row.is_positive as boolean,
+  }));
+}
+
+export async function validateReviewTags(codes: string[], reviewedRole: 'passenger' | 'driver'): Promise<string[]> {
+  const catalog = await listReviewTags();
+  const allowed = new Set(
+    catalog.filter((t) => t.appliesTo === 'both' || t.appliesTo === reviewedRole).map((t) => t.code),
+  );
+  return codes.filter((c) => allowed.has(c));
+}
+
+async function linkReviewTags(reviewId: string, tags: string[]) {
+  if (tags.length === 0) return;
+  if (useMemory()) {
+    reviewTags.set(reviewId, new Set(tags));
+    return;
+  }
+  for (const tag of tags) {
+    await pool.query(
+      `INSERT INTO ride_review_tag_links (review_id, tag_code) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [reviewId, tag],
+    );
+  }
+}
+
+export async function getReviewTags(reviewId: string): Promise<string[]> {
+  if (useMemory()) return [...(reviewTags.get(reviewId) ?? [])];
+  const { rows } = await pool.query(`SELECT tag_code FROM ride_review_tag_links WHERE review_id = $1`, [reviewId]);
+  return rows.map((r) => r.tag_code as string);
+}
 
 function reviewKey(rideId: string, reviewerUserId: string, reviewedUserId: string) {
   return `${rideId}:${reviewerUserId}:${reviewedUserId}`;
@@ -63,14 +132,19 @@ export async function listReviewsForUser(reviewedUserId: string): Promise<RideRe
   return rows.map(mapRow);
 }
 
-export async function insertReview(input: Omit<RideReviewRecord, 'id' | 'createdAt'>): Promise<RideReviewRecord> {
+export async function insertReview(
+  input: Omit<RideReviewRecord, 'id' | 'createdAt'> & { tags?: string[] },
+): Promise<RideReviewRecord> {
+  const tags = input.tags ?? [];
   if (useMemory()) {
     const record: RideReviewRecord = {
       id: randomUUID(),
       ...input,
+      tags,
       createdAt: new Date(),
     };
     reviews.set(reviewKey(input.rideId, input.reviewerUserId, input.reviewedUserId), record);
+    await linkReviewTags(record.id, tags);
     return record;
   }
 
@@ -89,7 +163,10 @@ export async function insertReview(input: Omit<RideReviewRecord, 'id' | 'created
       input.comment ?? null,
     ],
   );
-  return mapRow(rows[0]);
+  const record = mapRow(rows[0]);
+  record.tags = tags;
+  await linkReviewTags(record.id, tags);
+  return record;
 }
 
 export function toPublicReview(r: RideReviewRecord) {
@@ -102,6 +179,7 @@ export function toPublicReview(r: RideReviewRecord) {
     reviewedRole: r.reviewedRole,
     stars: r.stars,
     comment: r.comment,
+    tags: r.tags ?? [],
     createdAt: r.createdAt.toISOString(),
   };
 }

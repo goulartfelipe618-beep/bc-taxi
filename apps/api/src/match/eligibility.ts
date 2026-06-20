@@ -109,13 +109,16 @@ export function scoreCandidates(
   const category = getCategory(ride.categoryCode as RideCategoryCode);
   const etaMaxStage = estimateEtaSeconds(radiusM);
   const passengerTier = getTier(passenger.reputationScore);
-  const isPassengerElite = passengerTier === 'elite' || passengerTier === 'premium';
+  const isPassengerElite = passengerTier === 'elite';
+  const isPassengerPremium = passengerTier === 'premium' || isPassengerElite;
 
   const scored: ScoredCandidate[] = drivers.map((driver) => {
     const distanceM = haversineMeters(ride.pickupLat, ride.pickupLng, driver.lat!, driver.lng!);
     const etaPickupS = estimateEtaSeconds(distanceM);
     const compatibility = driverSupportsCategory(driver, ride.categoryCode);
     const driverTier = getTier(driver.reputationScore);
+    const isDriverElite = driverTier === 'elite';
+    const isDriverPremium = driverTier === 'premium' || isDriverElite;
 
     const featureVector = {
       distanceM,
@@ -138,7 +141,9 @@ export function scoreCandidates(
       completedRides: driver.completedRides,
       compatibility,
       isPassengerElite,
-      isDriverElite: driverTier === 'elite' || driverTier === 'premium',
+      isPassengerPremium,
+      isDriverElite,
+      isDriverPremium,
       isCorporate: ride.isCorporate,
       isPcdAdapted: ride.needsWheelchair && driver.wheelchairAccessible,
       isShared: ride.isShared,

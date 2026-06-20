@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getCategory } from '../domain/rideCategories.js';
+import { isCashPaymentAllowed, isPassengerCategoryAllowed, isPassengerPrepayRequired } from '../domain/reputation.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { quoteWithDynamicPricing } from '../pricing/dynamicPricingService.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -77,6 +78,7 @@ const verifyCodeSchema = z.object({
 const reviewSchema = z.object({
   stars: z.number().int().min(1).max(5),
   comment: z.string().max(500).optional(),
+  tags: z.array(z.string()).max(8).optional(),
 });
 
 export function statusLabel(status: RideStatus): string {
@@ -131,6 +133,31 @@ ridesRouter.post('/', async (req, res) => {
     return;
   }
 
+  const passengerRepScore = await getPassengerReputation(req.user!.id);
+  if (!isPassengerCategoryAllowed(passengerRepScore, parsed.data.categoryCode)) {
+    res.status(403).json({
+      error: 'Reputação insuficiente para esta categoria',
+      reputationScore: passengerRepScore,
+    });
+    return;
+  }
+
+  const paymentMethodId = parsed.data.paymentMethodId ?? DEMO_PAYMENT_METHOD_IDS.pix;
+  const { resolveMethodType, getPaymentMethod } = await import('../payments/paymentStore.js');
+  const methodType =
+    (await getPaymentMethod(req.user!.id, paymentMethodId))?.methodType ??
+    resolveMethodType(paymentMethodId) ??
+    'pix';
+
+  if (methodType === 'cash' && !isCashPaymentAllowed(passengerRepScore)) {
+    res.status(403).json({ error: 'Pagamento em dinheiro não permitido para sua reputação atual' });
+    return;
+  }
+  if (isPassengerPrepayRequired(passengerRepScore) && methodType === 'cash') {
+    res.status(403).json({ error: 'Pré-pagamento obrigatório — use PIX ou cartão' });
+    return;
+  }
+
   let estimatedFareCentavos: number | undefined;
   if (parsed.data.distanceKm && parsed.data.durationMin) {
     const quote = await quoteWithDynamicPricing(
@@ -142,13 +169,13 @@ ridesRouter.post('/', async (req, res) => {
     estimatedFareCentavos = quote.passengerFareCentavos;
   }
 
-  const paymentMethodId = parsed.data.paymentMethodId ?? DEMO_PAYMENT_METHOD_IDS.pix;
+  const paymentMethodIdFinal = paymentMethodId;
   let paymentIntentId: string | undefined;
 
   try {
     const intent = await authorizeRidePayment({
       userId: req.user!.id,
-      paymentMethodId,
+      paymentMethodId: paymentMethodIdFinal,
       amountCentavos: estimatedFareCentavos ?? 5000,
     });
     paymentIntentId = intent.id;
@@ -395,6 +422,7 @@ ridesRouter.post('/:id/review', async (req, res) => {
       reviewerRole: role,
       stars: parsed.data.stars,
       comment: parsed.data.comment,
+      tags: parsed.data.tags,
     });
     res.status(201).json({ review });
   } catch (e) {

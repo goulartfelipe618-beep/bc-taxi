@@ -4,7 +4,9 @@ export const MATCH_CONFIG: MatchConfig = {
   scoreWeights: { d: 0.32, r: 0.18, a: 0.12, c: 0.1, t: 0.08, e: 0.08, k: 0.12 },
   defaultRadiusStagesM: [800, 1500, 2500, 4000, 6500, 10000],
   passengerEliteBonus: 0.06,
+  passengerPremiumBonus: 0.03,
   driverEliteBonus: 0.05,
+  driverPremiumBonus: 0.025,
   corporateBonus: 0.04,
   sequentialOfferTimeoutSeconds: 6,
   parallelBatchSizeMin: 3,
@@ -21,7 +23,9 @@ export type MatchCandidateInput = {
   completedRides: number;
   compatibility: number;
   isPassengerElite?: boolean;
+  isPassengerPremium?: boolean;
   isDriverElite?: boolean;
+  isDriverPremium?: boolean;
   isCorporate?: boolean;
   isPcdAdapted?: boolean;
   isShared?: boolean;
@@ -50,7 +54,9 @@ export function computeMatchScore(input: MatchCandidateInput): number {
   let score =
     w.d * f.D + w.r * f.R + w.a * f.A + w.c * f.C + w.t * f.T + w.e * f.E + w.k * f.K;
   if (input.isPassengerElite) score += MATCH_CONFIG.passengerEliteBonus;
+  if (input.isPassengerPremium) score += MATCH_CONFIG.passengerPremiumBonus;
   if (input.isDriverElite) score += MATCH_CONFIG.driverEliteBonus;
+  if (input.isDriverPremium) score += MATCH_CONFIG.driverPremiumBonus;
   if (input.isCorporate) score += MATCH_CONFIG.corporateBonus;
   if (input.isShared && input.extraEtaSeconds != null) {
     const detour = clamp(input.extraEtaSeconds / (12 * 60), 0, 0.2);

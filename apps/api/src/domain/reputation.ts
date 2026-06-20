@@ -40,20 +40,41 @@ function tripWeight(review: ReviewInput): number {
 function temporalWeight(daysAgo: number, lambda: number, freshnessBonus: number): number {
   let w = Math.exp(-lambda * daysAgo);
   if (daysAgo <= 30) w *= freshnessBonus;
-  if (daysAgo > 365) w = Math.min(w, 0.15);
   return w;
 }
 
-export function computeWeightedRating(reviews: ReviewInput[], lambda: number): number {
+/** Cap aggregate weight from reviews older than 365 days to 15% of total (guia §127). */
+function applyHistoricalWeightCap(weights: { daysAgo: number; weight: number }[]): number[] {
+  const adjusted = weights.map((w) => w.weight);
+  let oldSum = 0;
+  let total = 0;
+  for (let i = 0; i < weights.length; i++) {
+    total += adjusted[i]!;
+    if (weights[i]!.daysAgo > 365) oldSum += adjusted[i]!;
+  }
+  if (total <= 0 || oldSum <= 0) return adjusted;
+  const maxOld = total * REPUTATION_CONFIG.maxHistoricalWeightRatio;
+  if (oldSum <= maxOld) return adjusted;
+  const scale = maxOld / oldSum;
+  return adjusted.map((w, i) => (weights[i]!.daysAgo > 365 ? w * scale : w));
+}
+
+export function computeWeightedRating(reviews: ReviewInput[], lambda: number): { rating: number; weightedCount: number } {
+  const rawWeights = reviews.map((r) => ({
+    daysAgo: r.daysAgo,
+    weight: temporalWeight(r.daysAgo, lambda, REPUTATION_CONFIG.freshnessBonus) * tripWeight(r),
+  }));
+  const weights = applyHistoricalWeightCap(rawWeights);
+
   let num = 0;
   let den = 0;
-  for (const r of reviews) {
-    const w = temporalWeight(r.daysAgo, lambda, REPUTATION_CONFIG.freshnessBonus) * tripWeight(r);
+  for (let i = 0; i < reviews.length; i++) {
+    const w = weights[i]!;
     if (w <= 0) continue;
-    num += r.stars * w;
+    num += reviews[i]!.stars * w;
     den += w;
   }
-  return den > 0 ? num / den : 0;
+  return { rating: den > 0 ? num / den : 0, weightedCount: den };
 }
 
 export function applyBayesianSmoothing(rating: number, weightedCount: number, m: number, globalMean = 4.7): number {
@@ -76,8 +97,88 @@ export function driverBlockedCategories(rating: number): string[] {
 
 export function passengerBlockedCategories(rating: number): string[] {
   const blocked: string[] = [];
-  if (rating < 4.1) blocked.push('comfort', 'executivo', 'black', 'compartilhado');
+  if (rating < 4.1) blocked.push('comfort', 'executivo', 'black', 'compartilhado', 'aeroporto', 'corporativo');
+  if (rating < 3.8) blocked.push('suv', 'van');
   return blocked;
+}
+
+export function isPassengerCategoryAllowed(rating: number, categoryCode: string): boolean {
+  return !passengerBlockedCategories(rating).includes(categoryCode);
+}
+
+export function isMonitoringRating(rating: number): boolean {
+  return rating < 4.3;
+}
+
+export function isDriverOperationallyBlocked(rating: number): boolean {
+  return rating < 3.9;
+}
+
+export function isPassengerPrepayRequired(rating: number): boolean {
+  return getTier(rating) === 'restrito' || rating < 3.8;
+}
+
+export function isCashPaymentAllowed(rating: number): boolean {
+  return rating >= 4.6;
+}
+
+export function computeDriverCompositeScore(
+  directScore: number,
+  metrics: {
+    operationalStability: number;
+    pickupPunctuality: number;
+    routeAdherence: number;
+    documentQuality: number;
+  },
+): number {
+  const composite =
+    0.65 * directScore +
+    0.1 * metrics.operationalStability +
+    0.1 * metrics.pickupPunctuality +
+    0.1 * metrics.routeAdherence +
+    0.05 * metrics.documentQuality;
+  return Math.round(composite * 10_000) / 10_000;
+}
+
+export function computePassengerCompositeScore(
+  directScore: number,
+  metrics: {
+    boardingPresence: number;
+    paymentSuccess: number;
+    lateCancelIndex: number;
+    behaviorIndex: number;
+  },
+): number {
+  const composite =
+    0.7 * directScore +
+    0.1 * metrics.boardingPresence +
+    0.1 * metrics.paymentSuccess +
+    0.05 * metrics.lateCancelIndex +
+    0.05 * metrics.behaviorIndex;
+  return Math.round(composite * 10_000) / 10_000;
+}
+
+export function displayRating(score: number): number {
+  return Math.round(score * 100) / 100;
+}
+
+export function getTierBenefits(tier: ReputationTier, role: 'passenger' | 'driver') {
+  return role === 'passenger' ? PASSENGER_TIER_BENEFITS[tier] : DRIVER_TIER_BENEFITS[tier];
+}
+
+export function getReputationProfile(score: number, role: 'passenger' | 'driver') {
+  const tier = getTier(score);
+  return {
+    score,
+    displayScore: displayRating(score),
+    tier,
+    monitoring: isMonitoringRating(score),
+    blockedCategories: role === 'driver' ? driverBlockedCategories(score) : passengerBlockedCategories(score),
+    benefits: getTierBenefits(tier, role),
+    prepayRequired: role === 'passenger' ? isPassengerPrepayRequired(score) : false,
+    cashAllowed: role === 'passenger' ? isCashPaymentAllowed(score) : true,
+    operationallyBlocked: role === 'driver' ? isDriverOperationallyBlocked(score) : false,
+  };
 }
 
 export const PASSENGER_TIER_BENEFITS = {

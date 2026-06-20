@@ -1,6 +1,6 @@
 import { getRide } from '../match/matchService.js';
 import { emitEvent } from '../realtime/eventBus.js';
-import { findReview, insertReview, toPublicReview } from './reviewStore.js';
+import { findReview, insertReview, toPublicReview, validateReviewTags } from './reviewStore.js';
 import { recalculateUserReputation } from './reputationService.js';
 
 export interface SubmitReviewInput {
@@ -9,6 +9,7 @@ export interface SubmitReviewInput {
   reviewerRole: 'passenger' | 'driver';
   stars: number;
   comment?: string;
+  tags?: string[];
 }
 
 export async function submitRideReview(input: SubmitReviewInput) {
@@ -39,6 +40,10 @@ export async function submitRideReview(input: SubmitReviewInput) {
   const existing = await findReview(input.rideId, input.reviewerUserId, reviewedUserId);
   if (existing) throw new Error('Avaliação já enviada para esta corrida');
 
+  const tags = input.tags?.length
+    ? await validateReviewTags(input.tags, reviewedRole)
+    : [];
+
   const review = await insertReview({
     rideId: input.rideId,
     reviewerUserId: input.reviewerUserId,
@@ -47,6 +52,7 @@ export async function submitRideReview(input: SubmitReviewInput) {
     reviewedRole,
     stars: input.stars,
     comment: input.comment,
+    tags,
   });
 
   void emitEvent(

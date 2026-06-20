@@ -98,7 +98,9 @@ export interface MatchConfig {
   scoreWeights: { d: number; r: number; a: number; c: number; t: number; e: number; k: number };
   defaultRadiusStagesM: number[];
   passengerEliteBonus: number;
+  passengerPremiumBonus: number;
   driverEliteBonus: number;
+  driverPremiumBonus: number;
   corporateBonus: number;
   sequentialOfferTimeoutSeconds: number;
   parallelBatchSizeMin: number;

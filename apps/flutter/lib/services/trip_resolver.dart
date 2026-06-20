@@ -2,6 +2,32 @@ import '../models/trip_draft.dart';
 import 'mapbox_service.dart';
 
 class TripResolver {
+  static Future<TripDraft> buildFromMapPlaces({
+    required MapPlace pickup,
+    required MapPlace dropoff,
+    bool scheduled = false,
+  }) async {
+    final route = await MapboxService.getDirections(
+      fromLat: pickup.lat,
+      fromLng: pickup.lng,
+      toLat: dropoff.lat,
+      toLng: dropoff.lng,
+    );
+
+    return TripDraft(
+      pickupAddress: pickup.address,
+      pickupLat: pickup.lat,
+      pickupLng: pickup.lng,
+      dropoffName: dropoff.label,
+      dropoffAddress: dropoff.address,
+      dropoffLat: dropoff.lat,
+      dropoffLng: dropoff.lng,
+      distanceKm: route?.distanceKm,
+      durationMin: route?.durationMin,
+      scheduled: scheduled,
+    );
+  }
+
   static Future<TripDraft> build({
     required String pickupAddress,
     required String dropoffName,
@@ -11,29 +37,23 @@ class TripResolver {
     final pickup = await MapboxService.resolvePlace(pickupAddress);
     final dropoff = await MapboxService.resolvePlace('$dropoffName $dropoffAddress');
 
-    final pickupLat = pickup?.lat ?? defaultPickupLat;
-    final pickupLng = pickup?.lng ?? defaultPickupLng;
-    final dropoffLat = dropoff?.lat ?? defaultDropoffLat;
-    final dropoffLng = dropoff?.lng ?? defaultDropoffLng;
+    final pickupPlace = pickup ??
+        MapPlace(
+          id: 'default-pickup',
+          label: pickupAddress,
+          address: pickupAddress,
+          lat: defaultPickupLat,
+          lng: defaultPickupLng,
+        );
+    final dropoffPlace = dropoff ??
+        MapPlace(
+          id: 'default-dropoff',
+          label: dropoffName,
+          address: dropoffAddress,
+          lat: defaultDropoffLat,
+          lng: defaultDropoffLng,
+        );
 
-    final route = await MapboxService.getDirections(
-      fromLat: pickupLat,
-      fromLng: pickupLng,
-      toLat: dropoffLat,
-      toLng: dropoffLng,
-    );
-
-    return TripDraft(
-      pickupAddress: pickup?.address ?? pickupAddress,
-      pickupLat: pickupLat,
-      pickupLng: pickupLng,
-      dropoffName: dropoff?.label ?? dropoffName,
-      dropoffAddress: dropoff?.address ?? dropoffAddress,
-      dropoffLat: dropoffLat,
-      dropoffLng: dropoffLng,
-      distanceKm: route?.distanceKm,
-      durationMin: route?.durationMin,
-      scheduled: scheduled,
-    );
+    return buildFromMapPlaces(pickup: pickupPlace, dropoff: dropoffPlace, scheduled: scheduled);
   }
 }

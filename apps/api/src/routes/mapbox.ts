@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { authMiddleware } from '../middleware/auth.js';
 import { autocompletePlaces, getDrivingRoute, getMapboxPublicConfig } from '../mapbox/mapboxClient.js';
+import { listRecentPlaces, recordPlaceConfirmation, toPublicPlaceHistory } from '../places/placeStore.js';
+import type { MapPlace } from '../mapbox/types.js';
 
 const autocompleteQuery = z.object({
   q: z.string().min(1),
@@ -29,6 +32,43 @@ placesRouter.get('/autocomplete', async (req, res) => {
 
 placesRouter.get('/config', (_req, res) => {
   res.json(getMapboxPublicConfig());
+});
+
+const confirmPlaceSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  address: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  featureId: z.string().optional(),
+  source: z.enum(['mapbox', 'mock']).optional(),
+});
+
+placesRouter.post('/confirm', authMiddleware, async (req, res) => {
+  const parsed = confirmPlaceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const place: MapPlace = {
+    id: parsed.data.id,
+    label: parsed.data.label,
+    address: parsed.data.address,
+    lat: parsed.data.lat,
+    lng: parsed.data.lng,
+    featureId: parsed.data.featureId ?? parsed.data.id,
+    source: parsed.data.source ?? 'mapbox',
+  };
+
+  const record = await recordPlaceConfirmation(req.user!.id, place);
+  res.status(201).json({ place: toPublicPlaceHistory(record) });
+});
+
+placesRouter.get('/recent', authMiddleware, async (req, res) => {
+  const limit = Math.min(Number(req.query.limit ?? 10), 20);
+  const items = await listRecentPlaces(req.user!.id, limit);
+  res.json({ places: items.map(toPublicPlaceHistory) });
 });
 
 export const routesRouter = Router();

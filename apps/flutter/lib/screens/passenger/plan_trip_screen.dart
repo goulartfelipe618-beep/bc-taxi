@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../constants/passenger_data.dart';
 import '../../models/trip_draft.dart';
+import '../../services/auth_service.dart';
+import '../../services/mapbox_service.dart';
 import '../../services/trip_resolver.dart';
 import '../../theme/passenger_theme.dart';
 import '../../widgets/passenger/bc_widgets.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
+import 'widgets/place_autocomplete_sheet.dart';
 
 class PlanTripScreen extends StatefulWidget {
   const PlanTripScreen({super.key, this.initialDestination, this.preselectedCategoryId});
@@ -19,24 +23,70 @@ class PlanTripScreen extends StatefulWidget {
 }
 
 class _PlanTripScreenState extends State<PlanTripScreen> {
-  late String _origin = defaultOrigin;
-  String? _destination;
+  late MapPlace _originPlace = MapPlace(
+    id: 'default-origin',
+    label: defaultOrigin,
+    address: defaultOrigin,
+    lat: defaultPickupLat,
+    lng: defaultPickupLng,
+  );
+  MapPlace? _destinationPlace;
   String _pickupLabel = 'Recolher agora';
   String _profileLabel = 'Para mim';
   final List<String> _stops = [];
   bool _navigating = false;
+  List<MapPlace> _recentPlaces = [];
+  bool _loadingRecent = true;
 
   @override
   void initState() {
     super.initState();
-    _destination = widget.initialDestination;
+    if (widget.initialDestination != null) {
+      _destinationPlace = MapPlace(
+        id: 'initial-dest',
+        label: widget.initialDestination!,
+        address: widget.initialDestination!,
+        lat: defaultDropoffLat,
+        lng: defaultDropoffLng,
+      );
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecentPlaces());
+  }
+
+  Future<void> _loadRecentPlaces() async {
+    final token = context.read<AuthService>().token;
+    final apiRecent = await MapboxService.recentPlaces(token: token);
+    if (!mounted) return;
+    setState(() {
+      _recentPlaces = apiRecent;
+      _loadingRecent = false;
+    });
+  }
+
+  Future<void> _confirmAndNavigate(MapPlace pickup, MapPlace dropoff) async {
+    if (_navigating) return;
+    setState(() => _navigating = true);
+
+    final token = context.read<AuthService>().token;
+    await MapboxService.confirmPlace(pickup, token: token);
+    await MapboxService.confirmPlace(dropoff, token: token);
+
+    final trip = await TripResolver.buildFromMapPlaces(pickup: pickup, dropoff: dropoff);
+    if (!mounted) return;
+    setState(() => _navigating = false);
+    PassengerRoutes.openConfirmPickup(
+      context,
+      trip: trip,
+      preselectedCategoryId: widget.preselectedCategoryId,
+    );
+    _loadRecentPlaces();
   }
 
   Future<void> _goToChooseRide(PlaceItem place) async {
     if (_navigating) return;
     setState(() => _navigating = true);
     final trip = await TripResolver.build(
-      pickupAddress: _origin,
+      pickupAddress: _originPlace.address,
       dropoffName: place.name,
       dropoffAddress: place.address,
     );
@@ -49,25 +99,45 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     );
   }
 
+  Future<void> _goToChooseRideFromMapPlace(MapPlace dropoff) async {
+    setState(() => _destinationPlace = dropoff);
+    await _confirmAndNavigate(_originPlace, dropoff);
+  }
+
   Future<void> _editOrigin() async {
-    final result = await showEditTextSheet(context, title: 'Origem', initial: _origin, hint: 'Endereço de recolha');
-    if (result != null) setState(() => _origin = result);
+    final result = await showPlaceAutocompleteSheet(
+      context,
+      title: 'Origem',
+      initial: _originPlace.label,
+      hint: 'Endereço de recolha',
+    );
+    if (result != null) setState(() => _originPlace = result);
   }
 
   Future<void> _editDestination() async {
-    final result = await showEditTextSheet(context, title: 'Destino', initial: _destination ?? '', hint: 'Para onde?');
-    if (result != null) {
-      _goToChooseRide(PlaceItem(name: result, address: result));
-    }
+    final result = await showPlaceAutocompleteSheet(
+      context,
+      title: 'Destino',
+      initial: _destinationPlace?.label ?? '',
+      hint: 'Para onde?',
+    );
+    if (result != null) await _goToChooseRideFromMapPlace(result);
   }
 
   Future<void> _addStop() async {
-    final result = await showEditTextSheet(context, title: 'Paragem intermédia', initial: '', hint: 'Adicionar paragem');
-    if (result != null) setState(() => _stops.add(result));
+    final result = await showPlaceAutocompleteSheet(
+      context,
+      title: 'Paragem intermédia',
+      hint: 'Adicionar paragem',
+    );
+    if (result != null) setState(() => _stops.add(result.label));
   }
 
   @override
   Widget build(BuildContext context) {
+    final destinationLabel = _destinationPlace?.label ?? widget.initialDestination ?? 'Para onde?';
+    final hasDestination = _destinationPlace != null || widget.initialDestination != null;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -133,7 +203,10 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          InkWell(onTap: _editOrigin, child: Text(_origin, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
+                          InkWell(
+                            onTap: _editOrigin,
+                            child: Text(_originPlace.label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                          ),
                           ..._stops.map(
                             (s) => Padding(
                               padding: const EdgeInsets.only(top: 8),
@@ -144,11 +217,11 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                           InkWell(
                             onTap: _editDestination,
                             child: Text(
-                              _destination ?? 'Para onde?',
+                              destinationLabel,
                               style: TextStyle(
                                 fontSize: 15,
-                                fontWeight: _destination != null ? FontWeight.w600 : FontWeight.w400,
-                                color: _destination != null ? BcColors.black : BcColors.gray,
+                                fontWeight: hasDestination ? FontWeight.w600 : FontWeight.w400,
+                                color: hasDestination ? BcColors.black : BcColors.gray,
                               ),
                             ),
                           ),
@@ -159,6 +232,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              BcSearchBar(hint: 'Buscar destino no Mapbox', onTap: _editDestination),
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -170,9 +245,31 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
               const Divider(height: 24),
               ...savedPlaces.map((p) => PlaceListTile(name: p.name, address: p.address, leading: Icons.star_outline, onTap: () => _goToChooseRide(p))),
               const Divider(height: 24),
-              ...recentPlaces.map(
-                (p) => PlaceListTile(name: p.name, address: p.address, distanceKm: p.distanceKm, onTap: () => _goToChooseRide(p)),
+              Row(
+                children: [
+                  const Icon(Icons.history, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Recentes', style: PassengerTheme.titleMedium.copyWith(fontSize: 16)),
+                ],
               ),
+              const Divider(height: 24),
+              if (_loadingRecent)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(minHeight: 2, color: BcColors.black),
+                )
+              else if (_recentPlaces.isNotEmpty)
+                ..._recentPlaces.map(
+                  (p) => PlaceListTile(
+                    name: p.label,
+                    address: p.address,
+                    onTap: () => _goToChooseRideFromMapPlace(p),
+                  ),
+                )
+              else
+                ...recentPlaces.map(
+                  (p) => PlaceListTile(name: p.name, address: p.address, distanceKm: p.distanceKm, onTap: () => _goToChooseRide(p)),
+                ),
             ],
           ),
           if (_navigating)

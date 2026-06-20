@@ -11,6 +11,8 @@ class MapPlace {
     required this.address,
     required this.lat,
     required this.lng,
+    this.featureId,
+    this.source = 'mapbox',
   });
 
   final String id;
@@ -18,6 +20,8 @@ class MapPlace {
   final String address;
   final double lat;
   final double lng;
+  final String? featureId;
+  final String source;
 
   factory MapPlace.fromJson(Map<String, dynamic> json) {
     return MapPlace(
@@ -26,8 +30,20 @@ class MapPlace {
       address: json['address'] as String,
       lat: (json['lat'] as num).toDouble(),
       lng: (json['lng'] as num).toDouble(),
+      featureId: json['featureId'] as String?,
+      source: json['source'] as String? ?? 'mapbox',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'label': label,
+        'address': address,
+        'lat': lat,
+        'lng': lng,
+        if (featureId != null) 'featureId': featureId,
+        'source': source,
+      };
 }
 
 class RouteSummary {
@@ -89,6 +105,55 @@ class MapboxService {
       return RouteSummary.fromJson(body['route'] as Map<String, dynamic>);
     } catch (_) {
       return null;
+    }
+  }
+
+  static Future<void> confirmPlace(MapPlace place, {String? token}) async {
+    if (token == null) return;
+    try {
+      await http
+          .post(
+            Uri.parse('$apiBaseUrl/v1/places/confirm'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(place.toJson()),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      /* best effort */
+    }
+  }
+
+  static Future<List<MapPlace>> recentPlaces({String? token, int limit = 10}) async {
+    if (token == null) return [];
+    try {
+      final uri = Uri.parse('$apiBaseUrl/v1/places/recent').replace(
+        queryParameters: {'limit': '$limit'},
+      );
+      final res = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode != 200) return [];
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (body['places'] as List<dynamic>).cast<Map<String, dynamic>>();
+      return list
+          .map(
+            (p) => MapPlace(
+              id: p['featureId'] as String? ?? p['id'] as String,
+              label: p['label'] as String,
+              address: p['address'] as String,
+              lat: (p['lat'] as num).toDouble(),
+              lng: (p['lng'] as num).toDouble(),
+              featureId: p['featureId'] as String?,
+              source: p['source'] as String? ?? 'mapbox',
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
     }
   }
 }

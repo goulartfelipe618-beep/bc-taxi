@@ -2,6 +2,7 @@ import { getCategory } from '../domain/rideCategories.js';
 import { getTier, getTierBenefits, driverBlockedCategories } from '../domain/reputation.js';
 import { computeMatchScore } from '../domain/match.js';
 import type { RideCategoryCode } from '../domain/types.js';
+import { driverHasCollectiveCert } from '../collective/collectiveTransportService.js';
 import { isPairBlocked } from './blockService.js';
 import { isDriverCompliantForCategory } from '../fleet/complianceService.js';
 import {
@@ -76,6 +77,10 @@ function passesCategoryHardRules(driver: DriverRecord, ride: RideRecord): boolea
   if (category.code === 'comfort' && !driver.comfortApproved) return false;
   if (ride.passengerCount > category.passengerLimitMax) return false;
 
+  if (category.driverRequirements.requiresCollectiveTraining && !driver.collectiveCertified) {
+    return false;
+  }
+
   const needCode = resolveRideNeedCode(ride);
   if (needCode === 'wheelchair' && !driver.wheelchairAccessible) return false;
 
@@ -114,6 +119,13 @@ export async function filterEligibleDrivers(
 
     const needCode = resolveRideNeedCode(ride);
     if (needCode && !(await isDriverCompatibleWithNeed(driver, needCode))) continue;
+
+    if (
+      (ride.categoryCode === 'van' || ride.categoryCode === 'micro_onibus') &&
+      !(await driverHasCollectiveCert(driver.userId, ride.categoryCode))
+    ) {
+      if (!driver.collectiveCertified) continue;
+    }
 
     eligible.push(driver);
   }

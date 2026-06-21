@@ -1,5 +1,6 @@
 import { getCategory } from '../domain/rideCategories.js';
 import type { RideCategoryCode } from '../domain/types.js';
+import { driverHasCollectiveCert } from '../collective/collectiveStore.js';
 import {
   getDriverEnabledCategoriesFromFleet,
   getPrimaryActiveVehicle,
@@ -87,6 +88,13 @@ export async function isDriverCompliantForCategory(
   if (categoryCode === 'corporativo') {
     const b2b = profile.driverDocuments.find((d) => d.docType === 'B2B_BILLING');
     if (!b2b || !isDocValid(b2b)) return false;
+  }
+
+  if (categoryCode === 'van' || categoryCode === 'micro_onibus') {
+    const collective = profile.driverDocuments.find((d) => d.docType === 'COLLECTIVE_TRAINING');
+    const hasDoc = collective != null && isDocValid(collective);
+    const hasCert = await driverHasCollectiveCert(driverId, categoryCode);
+    if (!hasDoc && !hasCert) return false;
   }
 
   return true;

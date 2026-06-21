@@ -30,17 +30,20 @@ export function seedDemoFleetCompliance(driverId: string, categoryCodes: string[
   wheelchairAccessible?: boolean;
   petReady?: boolean;
   comfortApproved?: boolean;
+  seatCount?: number;
+  bodyType?: string;
 }) {
   const vehicleId = randomUUID();
+  const isCollective = categoryCodes.includes('van') || categoryCodes.includes('micro_onibus');
   const vehicle: VehicleRecord = {
     id: vehicleId,
     driverId,
     plate: `DEMO-${driverId.slice(0, 4).toUpperCase()}`,
     make: 'Demo',
-    model: 'Sedan',
+    model: isCollective ? 'Van' : 'Sedan',
     year: new Date().getFullYear() - 5,
-    bodyType: opts?.comfortApproved || categoryCodes.includes('comfort') ? 'hatch_premium' : 'hatch',
-    seatCount: 4,
+    bodyType: opts?.bodyType ?? (isCollective ? 'van' : opts?.comfortApproved || categoryCodes.includes('comfort') ? 'hatch_premium' : 'hatch'),
+    seatCount: opts?.seatCount ?? (categoryCodes.includes('micro_onibus') ? 24 : categoryCodes.includes('van') ? 12 : 4),
     wheelchairAccessible: opts?.wheelchairAccessible ?? false,
     petReady: opts?.petReady ?? false,
     comfortApproved: opts?.comfortApproved ?? false,
@@ -73,6 +76,19 @@ export function seedDemoFleetCompliance(driverId: string, categoryCodes: string[
       createdAt: new Date(),
       updatedAt: new Date(),
     },
+    ...(isCollective
+      ? [
+          {
+            id: randomUUID(),
+            driverId,
+            docType: 'COLLECTIVE_TRAINING' as const,
+            status: 'approved' as const,
+            expiresAt: farFuture,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]
+      : []),
   ]);
 
   memoryVehicleDocs.set(vehicleId, [

@@ -63,6 +63,7 @@ export interface DriverRecord {
   petReady: boolean;
   comfortApproved: boolean;
   vehicleType: string;
+  collectiveCertified?: boolean;
 }
 
 export interface MatchAttemptRecord {

@@ -1,20 +1,47 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { RideCategoryCode } from '../domain/types.js';
-import { getDynamicMultiplier, refreshDynamicPricing } from '../pricing/dynamicPricingService.js';
+import { refreshDynamicPricing, refreshAllDynamicPricing } from '../pricing/dynamicPricingService.js';
 import { buildEngineQuote } from '../pricing/pricingEngineService.js';
 import { getActivePricingRule } from '../pricing/pricingRuleStore.js';
+import { getRecentCalculationLogs } from '../pricing/dynamicPricingGuardStore.js';
+import { buildPublicDynamicStatus } from '../pricing/dynamicPricingGuardService.js';
 import { config } from '../config.js';
 
 export const pricingRouter = Router();
 
 pricingRouter.get('/dynamic', async (req, res) => {
   const categoryCode = (req.query.category as string) ?? 'economico';
+  const lat = req.query.lat != null ? Number(req.query.lat) : undefined;
+  const lng = req.query.lng != null ? Number(req.query.lng) : undefined;
   try {
-    const multiplier = await getDynamicMultiplier(categoryCode as RideCategoryCode);
-    res.json({ categoryCode, multiplierEffective: multiplier });
+    const snapshot = await refreshDynamicPricing(categoryCode as RideCategoryCode, config.defaultPricingRegionId, {
+      lat,
+      lng,
+    });
+    res.json(buildPublicDynamicStatus(snapshot));
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Falha ao obter pricing dinâmico';
+    res.status(400).json({ error: message });
+  }
+});
+
+pricingRouter.get('/dynamic/logs/:categoryCode', async (req, res) => {
+  try {
+    const logs = await getRecentCalculationLogs(config.defaultPricingRegionId, req.params.categoryCode, 15);
+    res.json({ logs });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao obter logs';
+    res.status(400).json({ error: message });
+  }
+});
+
+pricingRouter.post('/dynamic/refresh-all', async (_req, res) => {
+  try {
+    const snapshots = await refreshAllDynamicPricing();
+    res.json({ snapshots: snapshots.map(buildPublicDynamicStatus) });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha ao atualizar pricing';
     res.status(400).json({ error: message });
   }
 });

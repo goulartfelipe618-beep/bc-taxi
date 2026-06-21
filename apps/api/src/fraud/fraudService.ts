@@ -65,6 +65,9 @@ export async function recordFraudSignal(input: {
         sourceType: 'gps_spoof',
         sourceRef: input.rideId,
       });
+      const { setRegionConservativeMode } = await import('../pricing/dynamicPricingGuardStore.js');
+      const { config } = await import('../config.js');
+      await setRegionConservativeMode(config.defaultPricingRegionId, true);
     }
   }
 

@@ -2,7 +2,6 @@ import { getCategory } from '../domain/rideCategories.js';
 import { clampDynamic, computeQuote, DEFAULT_PRICING_REGION } from '../domain/pricing.js';
 import type { PricingRegionDefaults, QuoteRequest, QuoteResult, RideCategoryCode } from '../domain/types.js';
 import { config } from '../config.js';
-import { getDynamicMultiplier } from './dynamicPricingService.js';
 import { getActivePricingRule, type PricingRuleVersion } from './pricingRuleStore.js';
 import { estimateTollsCentavos } from './tollService.js';
 import { resolveAirportContext, toPublicContext } from '../airport/airportService.js';
@@ -18,6 +17,7 @@ export interface EngineQuoteInput {
   addonsCentavos?: number;
   discountsCentavos?: number;
   regionId?: string;
+  rideId?: string;
   fromLat?: number;
   fromLng?: number;
   toLat?: number;
@@ -132,10 +132,14 @@ export async function buildEngineQuote(input: EngineQuoteInput): Promise<EngineQ
 
   const dynamicMultiplier =
     input.dynamicMultiplier ??
-    (await getDynamicMultiplier(input.categoryCode, regionId, {
-      lat: input.fromLat,
-      lng: input.fromLng,
-    }));
+    (await import('./rideDynamicLockService.js').then(({ resolveDynamicMultiplierForRide }) =>
+      resolveDynamicMultiplierForRide({
+        rideId: input.rideId,
+        categoryCode: input.categoryCode,
+        regionId,
+        context: { lat: input.fromLat, lng: input.fromLng },
+      }),
+    ));
 
   const category = getCategory(input.categoryCode);
   if (!category) throw new Error(`Categoria inválida: ${input.categoryCode}`);
@@ -167,7 +171,14 @@ export async function quoteWithEngine(
   categoryCode: RideCategoryCode,
   distanceKm: number,
   durationMin: number,
-  context?: { lat?: number; lng?: number; toLat?: number; toLng?: number; trafficIndex?: number },
+  context?: {
+    lat?: number;
+    lng?: number;
+    toLat?: number;
+    toLng?: number;
+    trafficIndex?: number;
+    rideId?: string;
+  },
 ) {
   return buildEngineQuote({
     categoryCode,
@@ -178,5 +189,6 @@ export async function quoteWithEngine(
     toLat: context?.toLat,
     toLng: context?.toLng,
     trafficIndex: context?.trafficIndex,
+    rideId: context?.rideId,
   });
 }

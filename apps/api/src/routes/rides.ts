@@ -395,6 +395,17 @@ ridesRouter.post('/', async (req, res) => {
   });
 
   if (quoteResult) {
+    const { lockDynamicMultiplierForRide } = await import('../pricing/rideDynamicLockService.js');
+    const { computeLiveFactors } = await import('../pricing/dynamicPricingService.js');
+    const factors = await computeLiveFactors(parsed.data.pickupLat, parsed.data.pickupLng);
+    await lockDynamicMultiplierForRide({
+      rideId: ride.id,
+      categoryCode: parsed.data.categoryCode,
+      regionId: quoteResult.regionId,
+      lockedMultiplier: quoteResult.dynamicMultiplier,
+      factors,
+    });
+
     await captureRideGovernanceSnapshot({
       rideId: ride.id,
       phase: 'quote',

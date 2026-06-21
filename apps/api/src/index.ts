@@ -33,6 +33,7 @@ import { startScheduleDispatcher } from './scheduling/scheduleService.js';
 import { startSharedPoolDispatcher } from './shared/sharedRideService.js';
 import { startOpsMetricsJanitor } from './observability/opsMetricsService.js';
 import { startLiveRouteMonitor } from './route/liveRouteMonitorService.js';
+import { startDynamicPricingScheduler } from './pricing/dynamicPricingService.js';
 
 async function main() {
   await migrate();
@@ -95,6 +96,7 @@ async function main() {
   const stopSharedDispatcher = startSharedPoolDispatcher();
   const stopOpsJanitor = startOpsMetricsJanitor();
   const stopLiveRouteMonitor = startLiveRouteMonitor();
+  const stopDynamicPricing = startDynamicPricingScheduler();
 
   server.listen(config.port, () => {
     console.log(`BC Taxi API running on http://localhost:${config.port} (WS /ws)`);
@@ -107,6 +109,7 @@ async function main() {
     clearInterval(stopSharedDispatcher);
     clearInterval(stopOpsJanitor);
     clearInterval(stopLiveRouteMonitor);
+    clearInterval(stopDynamicPricing);
     if (!config.useMemoryDb && pool) await pool.end();
     process.exit(0);
   });

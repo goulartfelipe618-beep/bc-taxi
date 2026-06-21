@@ -13,6 +13,8 @@ export interface PspAuthorizeParams {
   idempotencyKey: string;
   userId: string;
   description?: string;
+  /** Token/ref do PSP (ex.: pm_xxx Stripe, card token MP). */
+  providerPaymentMethodId?: string;
 }
 
 export interface PspAuthorizeResult {
@@ -39,9 +41,22 @@ export interface PspVoidParams {
   idempotencyKey: string;
 }
 
+export interface PspRefundParams {
+  providerRef: string;
+  amountCentavos: number;
+  idempotencyKey: string;
+}
+
+export interface PspRefundResult {
+  providerRef: string;
+  status: 'refunded' | 'failed';
+  failureReason?: string;
+}
+
 export interface PspProvider {
   name: string;
   authorize(params: PspAuthorizeParams): Promise<PspAuthorizeResult>;
   capture(params: PspCaptureParams): Promise<PspCaptureResult>;
   void(params: PspVoidParams): Promise<{ status: 'voided' | 'failed'; failureReason?: string }>;
+  refund(params: PspRefundParams): Promise<PspRefundResult>;
 }

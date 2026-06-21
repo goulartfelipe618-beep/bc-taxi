@@ -80,7 +80,7 @@ export class MercadoPagoPspProvider implements PspProvider {
       '/v1/payments',
       {
         transaction_amount: params.amountCentavos / 100,
-        token: params.idempotencyKey,
+        token: params.providerPaymentMethodId ?? params.idempotencyKey,
         description: params.description ?? 'BC Taxi',
         installments: 1,
         payment_method_id: 'visa',
@@ -121,6 +121,23 @@ export class MercadoPagoPspProvider implements PspProvider {
       return { status: 'voided' as const };
     }
   }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    try {
+      const result = await mpRequest<{ id: number }>(
+        `/v1/payments/${params.providerRef}/refunds`,
+        { amount: params.amountCentavos / 100 },
+        params.idempotencyKey,
+      );
+      return { providerRef: String(result.id), status: 'refunded' as const };
+    } catch (e) {
+      return {
+        providerRef: params.providerRef,
+        status: 'failed' as const,
+        failureReason: e instanceof Error ? e.message : 'Mercado Pago refund failed',
+      };
+    }
+  }
 }
 
 export function createMercadoPagoProvider() {
@@ -155,5 +172,9 @@ export class MercadoPagoDemoPspProvider implements PspProvider {
 
   async void() {
     return { status: 'voided' as const };
+  }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    return { providerRef: `mp-refund-${params.providerRef}`, status: 'refunded' as const };
   }
 }

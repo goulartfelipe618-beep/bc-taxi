@@ -53,6 +53,11 @@ export async function recordPaymentTransaction(params: {
   idempotencyKey?: string;
   status?: PaymentTransactionRecord['status'];
 }): Promise<PaymentTransactionRecord> {
+  if (params.idempotencyKey) {
+    const existing = await findTransactionByIdempotencyKey(params.idempotencyKey);
+    if (existing) return existing;
+  }
+
   const now = new Date();
   const record: PaymentTransactionRecord = {
     id: randomUUID(),

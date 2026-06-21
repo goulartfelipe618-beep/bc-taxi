@@ -8,6 +8,7 @@ import { getPspProvider } from './psp/pspProvider.js';
 import {
   attachIntentToRideStore,
   createPaymentIntent,
+  getMethodPspDetails,
   getPaymentIntent,
   getPaymentIntentByIdempotencyKey,
   getPaymentIntentForRide,
@@ -58,6 +59,7 @@ export async function authorizeRidePayment(params: {
   }
 
   const psp = getPspProvider();
+  const pspDetails = await getMethodPspDetails(method.id);
   const pspResult = await psp.authorize({
     amountCentavos: amount,
     currency: 'BRL',
@@ -65,6 +67,7 @@ export async function authorizeRidePayment(params: {
     idempotencyKey,
     userId: params.userId,
     description: params.rideId ? `Corrida ${params.rideId}` : 'BC Taxi',
+    providerPaymentMethodId: pspDetails?.providerRef,
   });
 
   if (pspResult.status === 'failed') {

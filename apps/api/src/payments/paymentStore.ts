@@ -48,6 +48,13 @@ const DEMO_METHODS: Omit<PaymentMethodRecord, 'userId'>[] = [
 
 const methodsByUser = new Map<string, PaymentMethodRecord[]>();
 const intents = new Map<string, PaymentIntentRecord>();
+const methodPspById = new Map<string, { provider: string; providerRef: string; providerCustomerId?: string }>();
+
+export interface MethodPspDetails {
+  provider: string;
+  providerRef: string;
+  providerCustomerId?: string;
+}
 
 function seedUserMethods(userId: string): PaymentMethodRecord[] {
   const existing = methodsByUser.get(userId);
@@ -163,6 +170,9 @@ export async function createPaymentIntent(params: {
       updatedAt: now,
     };
     intents.set(intent.id, intent);
+    if (params.providerRef) {
+      intents.set(`ref:${params.providerRef}`, intent);
+    }
     return intent;
   }
 
@@ -261,4 +271,99 @@ export async function getPaymentIntentForRide(rideId: string): Promise<PaymentIn
 export function resolveMethodType(methodId: string): PaymentMethodType | null {
   const entry = Object.entries(DEMO_PAYMENT_METHOD_IDS).find(([, id]) => id === methodId);
   return entry ? (entry[0] as PaymentMethodType) : null;
+}
+
+export async function getMethodPspDetails(methodId: string): Promise<MethodPspDetails | null> {
+  if (useMemoryPayments()) {
+    return methodPspById.get(methodId) ?? null;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT provider, provider_ref, provider_customer_id FROM payment_methods WHERE id = $1`,
+    [methodId],
+  );
+  if (!rows[0]?.provider_ref) return null;
+  return {
+    provider: rows[0].provider as string,
+    providerRef: rows[0].provider_ref as string,
+    providerCustomerId: (rows[0].provider_customer_id as string) ?? undefined,
+  };
+}
+
+export async function saveTokenizedPaymentMethod(params: {
+  userId: string;
+  methodType: PaymentMethodType;
+  label: string;
+  lastFour?: string;
+  brand?: string;
+  provider: string;
+  providerRef: string;
+  providerCustomerId?: string;
+  fingerprintHash?: string;
+  setDefault?: boolean;
+}): Promise<PaymentMethodRecord> {
+  const id = randomUUID();
+  const method: PaymentMethodRecord = {
+    id,
+    userId: params.userId,
+    methodType: params.methodType,
+    label: params.label,
+    lastFour: params.lastFour,
+    brand: params.brand,
+    isDefault: params.setDefault ?? false,
+    isActive: true,
+  };
+
+  if (useMemoryPayments()) {
+    const list = seedUserMethods(params.userId);
+    if (params.setDefault) {
+      for (const m of list) m.isDefault = false;
+    }
+    list.push(method);
+    methodPspById.set(id, {
+      provider: params.provider,
+      providerRef: params.providerRef,
+      providerCustomerId: params.providerCustomerId,
+    });
+    return method;
+  }
+
+  if (params.setDefault) {
+    await pool.query(`UPDATE payment_methods SET is_default = FALSE WHERE user_id = $1`, [params.userId]);
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO payment_methods
+      (id, user_id, method_type, label, last_four, brand, is_default, provider, provider_ref, provider_customer_id, fingerprint_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     RETURNING *`,
+    [
+      id,
+      params.userId,
+      params.methodType,
+      params.label,
+      params.lastFour ?? null,
+      params.brand ?? null,
+      params.setDefault ?? false,
+      params.provider,
+      params.providerRef,
+      params.providerCustomerId ?? null,
+      params.fingerprintHash ?? null,
+    ],
+  );
+  return mapMethodRow(rows[0]);
+}
+
+export async function getPaymentIntentByProviderRef(providerRef: string): Promise<PaymentIntentRecord | null> {
+  if (useMemoryPayments()) {
+    const cached = intents.get(`ref:${providerRef}`);
+    if (cached) return cached;
+    return [...intents.values()].find((i) => i.providerRef === providerRef) ?? null;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT * FROM payment_intents WHERE provider_ref = $1 ORDER BY created_at DESC LIMIT 1`,
+    [providerRef],
+  );
+  return rows[0] ? mapIntentRow(rows[0]) : null;
 }

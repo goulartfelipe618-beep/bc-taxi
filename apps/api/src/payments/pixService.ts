@@ -23,13 +23,8 @@ export async function handlePspWebhook(payload: {
   paymentIntentId?: string;
   idempotencyKey?: string;
 }) {
-  if (payload.event === 'pix.paid' && payload.txid) {
-    return confirmPixPayment(payload.txid, payload.idempotencyKey);
-  }
-  if (payload.event === 'charge.failed' && payload.paymentIntentId) {
-    return failPaymentIntent(payload.paymentIntentId, 'PSP charge failed');
-  }
-  return { handled: false };
+  const { handlePspWebhookWithIdempotency } = await import('./webhookService.js');
+  return handlePspWebhookWithIdempotency(payload);
 }
 
 export async function confirmPixPayment(txid: string, idempotencyKey?: string) {

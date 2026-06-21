@@ -61,16 +61,23 @@ export class StripePspProvider implements PspProvider {
     const paymentMethodTypes =
       params.methodType === 'pix' ? ['pix'] : ['card'];
 
+    const body: Record<string, string | number | string[]> = {
+      amount: params.amountCentavos,
+      currency: 'brl',
+      capture_method: 'manual',
+      'payment_method_types[]': paymentMethodTypes,
+      description: params.description ?? 'BC Taxi',
+    };
+
+    if (params.providerPaymentMethodId && params.methodType !== 'pix') {
+      body.payment_method = params.providerPaymentMethodId;
+      body.confirm = 'true';
+    }
+
     const intent = await stripeRequest<StripeIntent>(
       'payment_intents',
       this.secretKey,
-      {
-        amount: params.amountCentavos,
-        currency: 'brl',
-        capture_method: 'manual',
-        'payment_method_types[]': paymentMethodTypes,
-        description: params.description ?? 'BC Taxi',
-      },
+      body,
       params.idempotencyKey,
     );
 
@@ -131,6 +138,27 @@ export class StripePspProvider implements PspProvider {
       return {
         status: 'failed' as const,
         failureReason: e instanceof Error ? e.message : 'Stripe void failed',
+      };
+    }
+  }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    try {
+      const refund = await stripeRequest<{ id: string }>(
+        'refunds',
+        this.secretKey,
+        {
+          payment_intent: params.providerRef,
+          amount: params.amountCentavos,
+        },
+        params.idempotencyKey,
+      );
+      return { providerRef: refund.id, status: 'refunded' as const };
+    } catch (e) {
+      return {
+        providerRef: params.providerRef,
+        status: 'failed' as const,
+        failureReason: e instanceof Error ? e.message : 'Stripe refund failed',
       };
     }
   }

@@ -30,7 +30,8 @@
     "test:camada15": "tsx scripts/test-camada15.ts",
     "test:camada16": "tsx scripts/test-camada16.ts",
     "test:camada17": "tsx scripts/test-camada17.ts",
-    "test:camada18": "tsx scripts/test-camada18.ts"
+    "test:camada18": "tsx scripts/test-camada18.ts",
+    "test:camada19": "tsx scripts/test-camada19.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

@@ -37,6 +37,13 @@ class PaymentService {
 
   final ApiClient _client;
 
+  Future<Map<String, dynamic>> fetchConfig() async {
+    final res = await _client.get('/v1/payments/config');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return data;
+  }
+
   Future<List<PaymentMethod>> fetchMethods() async {
     final res = await _client.get('/v1/payments/methods');
     final data = _client.decodeJson(res);
@@ -45,15 +52,36 @@ class PaymentService {
     return list.map(PaymentMethod.fromJson).toList();
   }
 
+  Future<PaymentMethod> tokenizeCard({
+    required String providerToken,
+    String methodType = 'card',
+    String? lastFour,
+    String? brand,
+    bool setDefault = false,
+  }) async {
+    final res = await _client.post('/v1/payments/methods/tokenize', body: {
+      'methodType': methodType,
+      'providerToken': providerToken,
+      if (lastFour != null) 'lastFour': lastFour,
+      if (brand != null) 'brand': brand,
+      'setDefault': setDefault,
+    });
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return PaymentMethod.fromJson(data['method'] as Map<String, dynamic>);
+  }
+
   Future<PaymentIntent> authorizeIntent({
     required String paymentMethodId,
     required int amountCentavos,
     String? rideId,
+    String? idempotencyKey,
   }) async {
     final res = await _client.post('/v1/payments/intents/authorize', body: {
       'paymentMethodId': paymentMethodId,
       'amountCentavos': amountCentavos,
       if (rideId != null) 'rideId': rideId,
+      if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
     });
     final data = _client.decodeJson(res);
     _client.throwIfError(res, data);

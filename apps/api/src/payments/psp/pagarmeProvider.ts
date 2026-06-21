@@ -139,6 +139,23 @@ export class PagarmePspProvider implements PspProvider {
       return { status: 'voided' as const };
     }
   }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    try {
+      await pagarmeRequest(
+        `/charges/${params.providerRef}/refunds`,
+        { amount: params.amountCentavos },
+        params.idempotencyKey,
+      );
+      return { providerRef: `pg-refund-${params.providerRef}`, status: 'refunded' as const };
+    } catch (e) {
+      return {
+        providerRef: params.providerRef,
+        status: 'failed' as const,
+        failureReason: e instanceof Error ? e.message : 'Pagar.me refund failed',
+      };
+    }
+  }
 }
 
 export class PagarmeDemoPspProvider implements PspProvider {
@@ -167,6 +184,10 @@ export class PagarmeDemoPspProvider implements PspProvider {
 
   async void() {
     return { status: 'voided' as const };
+  }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    return { providerRef: `pg-refund-${params.providerRef}`, status: 'refunded' as const };
   }
 }
 

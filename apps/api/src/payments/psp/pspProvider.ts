@@ -57,6 +57,13 @@ class DemoPspProvider implements PspProvider {
   async void(_params: PspVoidParams) {
     return { status: 'voided' as const };
   }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    if (params.providerRef.includes('fail')) {
+      return { providerRef: params.providerRef, status: 'failed' as const, failureReason: 'PSP refund declined' };
+    }
+    return { providerRef: `refund-${params.providerRef}`, status: 'refunded' as const };
+  }
 }
 
 class HttpPspProvider implements PspProvider {
@@ -111,6 +118,19 @@ class HttpPspProvider implements PspProvider {
     });
     if (!res.ok) return { status: 'failed' as const, failureReason: await res.text() };
     return { status: 'voided' as const };
+  }
+
+  async refund(params: import('./types.js').PspRefundParams) {
+    const res = await fetch(`${this.baseUrl}/v1/charges/refund`, {
+      method: 'POST',
+      headers: this.headers(params.idempotencyKey),
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      return { providerRef: params.providerRef, status: 'failed' as const, failureReason: await res.text() };
+    }
+    const json = (await res.json()) as { providerRef?: string };
+    return { providerRef: json.providerRef ?? params.providerRef, status: 'refunded' as const };
   }
 }
 

@@ -22,6 +22,7 @@ import { schedulingRouter } from './routes/scheduling.js';
 import { corporateRouter } from './routes/corporate.js';
 import { deliveriesRouter } from './routes/deliveries.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
+import { driverPayoutRouter } from './routes/driverPayout.js';
 import { startHeartbeatJanitor } from './driver/driverLocationService.js';
 import { eventsRouter } from './routes/events.js';
 import { governanceRouter } from './routes/governance.js';
@@ -83,6 +84,7 @@ async function main() {
   app.use('/v1/rides', ridesRouter);
   app.use('/v1/driver', driverRouter);
   app.use('/v1/driver/fleet', driverFleetRouter);
+  app.use('/v1/driver/payout', driverPayoutRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Rota não encontrada' });

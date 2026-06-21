@@ -208,8 +208,20 @@ export async function captureRidePayment(
       rideContext.categoryCode,
       rideContext.distanceKm ?? 5,
       rideContext.durationMin ?? 15,
+      { rideId },
     );
     quote.passengerFareCentavos = captureAmount;
+
+    let reputationTier: string | undefined;
+    try {
+      const profile = await import('../reviews/reputationService.js').then((m) =>
+        m.getUserReputationProfile(rideContext.driverUserId!, 'driver'),
+      );
+      reputationTier = profile?.tier;
+    } catch {
+      reputationTier = undefined;
+    }
+
     await recordPaymentSettlement({
       rideId,
       driverUserId: rideContext.driverUserId,
@@ -217,6 +229,7 @@ export async function captureRidePayment(
       paymentMethodType: intent.paymentMethodType,
       quote,
       confirmedByUserId: rideContext.driverUserId,
+      reputationTier,
     });
   }
 

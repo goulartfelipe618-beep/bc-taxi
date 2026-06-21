@@ -68,6 +68,7 @@ class PassengerRoutes {
     String origin = defaultOrigin,
     String? preselectedCategoryId,
     bool scheduled = false,
+    DateTime? scheduledAt,
     bool skipPickupConfirm = false,
   }) async {
     final trip = await TripResolver.build(
@@ -75,6 +76,7 @@ class PassengerRoutes {
       dropoffName: destination.name,
       dropoffAddress: destination.address,
       scheduled: scheduled,
+      scheduledAt: scheduledAt,
     );
     if (!context.mounted) return;
     if (!skipPickupConfirm) {

@@ -7,6 +7,7 @@ class TripResolver {
     required MapPlace dropoff,
     List<MapPlace> stops = const [],
     bool scheduled = false,
+    DateTime? scheduledAt,
   }) async {
     final route = await MapboxService.getDirections(
       fromLat: pickup.lat,
@@ -33,6 +34,7 @@ class TripResolver {
       distanceKm: route?.distanceKm,
       durationMin: route?.durationMin,
       scheduled: scheduled,
+      scheduledAt: scheduledAt,
     );
   }
 
@@ -41,6 +43,7 @@ class TripResolver {
     required String dropoffName,
     required String dropoffAddress,
     bool scheduled = false,
+    DateTime? scheduledAt,
   }) async {
     final pickup = await MapboxService.resolvePlace(pickupAddress);
     final dropoff = await MapboxService.resolvePlace('$dropoffName $dropoffAddress');
@@ -62,6 +65,11 @@ class TripResolver {
           lng: defaultDropoffLng,
         );
 
-    return buildFromMapPlaces(pickup: pickupPlace, dropoff: dropoffPlace, scheduled: scheduled);
+    return buildFromMapPlaces(
+      pickup: pickupPlace,
+      dropoff: dropoffPlace,
+      scheduled: scheduled,
+      scheduledAt: scheduledAt,
+    );
   }
 }

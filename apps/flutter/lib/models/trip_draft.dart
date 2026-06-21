@@ -33,6 +33,7 @@ class TripDraft {
     this.distanceKm,
     this.durationMin,
     this.scheduled = false,
+    this.scheduledAt,
   });
 
   final String pickupAddress;
@@ -47,12 +48,14 @@ class TripDraft {
   final double? distanceKm;
   final double? durationMin;
   final bool scheduled;
+  final DateTime? scheduledAt;
 
   TripDraft copyWith({
     double? distanceKm,
     double? durationMin,
     List<TripStop>? stops,
     List<RoutePoint>? routePoints,
+    DateTime? scheduledAt,
   }) {
     return TripDraft(
       pickupAddress: pickupAddress,
@@ -67,6 +70,7 @@ class TripDraft {
       distanceKm: distanceKm ?? this.distanceKm,
       durationMin: durationMin ?? this.durationMin,
       scheduled: scheduled,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
     );
   }
 }

@@ -53,7 +53,7 @@ import {
   startOnlineSession,
   updateDriverLocation,
 } from '../driver/driverLocationService.js';
-import { getWeatherAtPoint, isCategoryBlockedByWeather } from '../weather/weatherService.js';
+import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -71,6 +71,7 @@ const createRideSchema = z.object({
   distanceKm: z.number().positive().optional(),
   durationMin: z.number().positive().optional(),
   paymentMethodId: z.string().uuid().optional(),
+  couponCode: z.string().optional(),
 });
 
 const verifyCodeSchema = z.object({
@@ -171,6 +172,28 @@ ridesRouter.post('/', async (req, res) => {
     estimatedFareCentavos = quote.passengerFareCentavos;
   }
 
+  let discountCentavos = 0;
+  let promoCodeApplied: string | undefined;
+  let fareBeforeCoupon = estimatedFareCentavos;
+  let promoRecord: Awaited<ReturnType<typeof validatePromoCode>>['promo'];
+
+  if (parsed.data.couponCode && estimatedFareCentavos && estimatedFareCentavos > 0) {
+    const coupon = await validatePromoCode({
+      code: parsed.data.couponCode,
+      userId: req.user!.id,
+      categoryCode: parsed.data.categoryCode,
+      fareCentavos: estimatedFareCentavos,
+    });
+    if (!coupon.valid) {
+      res.status(400).json({ error: coupon.reason ?? 'Cupom inválido' });
+      return;
+    }
+    promoRecord = coupon.promo;
+    discountCentavos = coupon.discountCentavos;
+    estimatedFareCentavos = coupon.fareAfterCentavos;
+    promoCodeApplied = parsed.data.couponCode.toUpperCase();
+  }
+
   const paymentMethodIdFinal = paymentMethodId;
   let paymentIntentId: string | undefined;
   let paymentPayload: ReturnType<typeof toPublicPaymentIntent> | undefined;
@@ -233,6 +256,16 @@ ridesRouter.post('/', async (req, res) => {
     }
   }
 
+  if (promoRecord && discountCentavos > 0) {
+    await recordCouponRedemption({
+      promo: promoRecord,
+      userId: req.user!.id,
+      fareBeforeCentavos: fareBeforeCoupon ?? estimatedFareCentavos ?? 0,
+      discountCentavos,
+      rideId: ride.id,
+    });
+  }
+
   const passengerRep = await getPassengerReputation(req.user!.id);
   const matched = await startMatching(ride.id, passengerRep);
   const finalRide = matched ?? ride;
@@ -241,6 +274,8 @@ ridesRouter.post('/', async (req, res) => {
     paymentIntentId,
     payment: paymentPayload,
     risk,
+    discountCentavos: discountCentavos || undefined,
+    promoCode: promoCodeApplied,
   });
 });
 

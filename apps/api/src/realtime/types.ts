@@ -18,7 +18,9 @@ export type RealtimeEventType =
   | 'DRIVER_LOCATION_UPDATED'
   | 'RIDE_START_CODE_ISSUED'
   | 'ROUTE_RECALCULATED'
-  | 'PAYMENT_FAILED';
+  | 'PAYMENT_FAILED'
+  | 'SCHEDULED_RIDE_CREATED'
+  | 'SCHEDULED_RIDE_DISPATCHED';
 
 export interface RealtimeEvent<T = Record<string, unknown>> {
   eventId: string;

@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { config } from '../config.js';
+import { renderAdminDashboardHtml } from '../admin/dashboardHtml.js';
 import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import {
   getAdminOverview,
@@ -8,6 +10,12 @@ import {
 } from '../admin/adminService.js';
 
 export const adminRouter = Router();
+
+adminRouter.get('/dashboard', (_req, res) => {
+  const apiBase = process.env.PUBLIC_API_URL ?? `http://localhost:${config.port}`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderAdminDashboardHtml(apiBase));
+});
 
 adminRouter.use(adminAuthMiddleware);
 

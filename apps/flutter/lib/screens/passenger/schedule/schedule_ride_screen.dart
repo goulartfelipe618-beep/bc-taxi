@@ -81,6 +81,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
                       origin: defaultOrigin,
                       destination: _destination!,
                       scheduled: true,
+                      scheduledAt: _scheduledAt,
                     );
                   },
             style: FilledButton.styleFrom(backgroundColor: BcColors.black, padding: const EdgeInsets.symmetric(vertical: 16)),

@@ -17,8 +17,11 @@ import { pricingRouter } from './routes/pricing.js';
 import { receiptsRouter } from './routes/receipts.js';
 import { reputationRouter } from './routes/reputation.js';
 import { driverRouter, ridesRouter } from './routes/rides.js';
+import { promotionsRouter } from './routes/promotions.js';
+import { schedulingRouter } from './routes/scheduling.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
 import { startHeartbeatJanitor } from './driver/driverLocationService.js';
+import { startScheduleDispatcher } from './scheduling/scheduleService.js';
 
 async function main() {
   await migrate();
@@ -51,6 +54,8 @@ async function main() {
   app.use('/v1/notifications', notificationsRouter);
   app.use('/v1/receipts', receiptsRouter);
   app.use('/v1/admin', adminRouter);
+  app.use('/v1/promotions', promotionsRouter);
+  app.use('/v1/schedules', schedulingRouter);
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);
   app.use('/v1/routes', routesRouter);
@@ -67,6 +72,7 @@ async function main() {
   attachWebSocketServer(server);
   const stopRedisFanout = startRedisFanout();
   const stopHeartbeatJanitor = startHeartbeatJanitor();
+  const stopScheduleDispatcher = startScheduleDispatcher();
 
   server.listen(config.port, () => {
     console.log(`BC Taxi API running on http://localhost:${config.port} (WS /ws)`);
@@ -75,6 +81,7 @@ async function main() {
   process.on('SIGINT', async () => {
     stopRedisFanout?.();
     clearInterval(stopHeartbeatJanitor);
+    clearInterval(stopScheduleDispatcher);
     if (!config.useMemoryDb && pool) await pool.end();
     process.exit(0);
   });

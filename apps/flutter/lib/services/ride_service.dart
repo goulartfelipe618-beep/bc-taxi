@@ -24,6 +24,7 @@ class RideService {
     required TripDraft trip,
     required String categoryCode,
     required String paymentMethodId,
+    String? couponCode,
   }) async {
     final res = await _client.post('/v1/rides', body: {
       'categoryCode': categoryCode,
@@ -36,6 +37,7 @@ class RideService {
       if (trip.distanceKm != null) 'distanceKm': trip.distanceKm,
       if (trip.durationMin != null) 'durationMin': trip.durationMin,
       'paymentMethodId': paymentMethodId,
+      if (couponCode != null && couponCode.isNotEmpty) 'couponCode': couponCode,
     });
     final data = _client.decodeJson(res);
     _client.throwIfError(res, data);

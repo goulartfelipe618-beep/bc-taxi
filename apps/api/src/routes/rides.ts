@@ -59,6 +59,14 @@ import { logRideDecision } from '../observability/decisionLogService.js';
 import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
 import { publicPromosBlockedForCorporate } from '../corporate/corporateService.js';
+import {
+  dispatchReadyPools,
+  getPoolBookings,
+  quoteSharedRide,
+  registerSharedBooking,
+  toPublicPool,
+  toPublicSharedQuote,
+} from '../shared/sharedRideService.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -73,6 +81,7 @@ const createRideSchema = z.object({
   isShared: z.boolean().optional(),
   hasPet: z.boolean().optional(),
   needsWheelchair: z.boolean().optional(),
+  hasLargeBaggage: z.boolean().optional(),
   distanceKm: z.number().positive().optional(),
   durationMin: z.number().positive().optional(),
   paymentMethodId: z.string().uuid().optional(),
@@ -168,7 +177,38 @@ ridesRouter.post('/', async (req, res) => {
 
   let estimatedFareCentavos: number | undefined;
   let quoteResult: Awaited<ReturnType<typeof quoteWithDynamicPricing>> | undefined;
-  if (parsed.data.distanceKm && parsed.data.durationMin) {
+  let sharedQuoteResult: Awaited<ReturnType<typeof quoteSharedRide>> | undefined;
+
+  const isSharedRide =
+    parsed.data.categoryCode === 'compartilhado' || parsed.data.isShared === true;
+
+  if (isSharedRide) {
+    if (!parsed.data.distanceKm || !parsed.data.durationMin) {
+      res.status(400).json({ error: 'distanceKm e durationMin são obrigatórios para compartilhado' });
+      return;
+    }
+    if (parsed.data.hasLargeBaggage) {
+      res.status(400).json({ error: 'Bagagem grande não é permitida em viagem compartilhada' });
+      return;
+    }
+    try {
+      sharedQuoteResult = await quoteSharedRide({
+        distanceKm: parsed.data.distanceKm,
+        durationMin: parsed.data.durationMin,
+        pickupLat: parsed.data.pickupLat,
+        pickupLng: parsed.data.pickupLng,
+        dropoffLat: parsed.data.dropoffLat,
+        dropoffLng: parsed.data.dropoffLng,
+        hasLargeBaggage: parsed.data.hasLargeBaggage,
+        passengerId: req.user!.id,
+      });
+      estimatedFareCentavos = sharedQuoteResult.finalFareCentavos;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Falha ao cotar compartilhado';
+      res.status(400).json({ error: message });
+      return;
+    }
+  } else if (parsed.data.distanceKm && parsed.data.durationMin) {
     quoteResult = await quoteWithDynamicPricing(
       parsed.data.categoryCode as RideCategoryCode,
       parsed.data.distanceKm,
@@ -258,7 +298,7 @@ ridesRouter.post('/', async (req, res) => {
     dropoffAddress: parsed.data.dropoffAddress,
     passengerCount: parsed.data.passengerCount,
     isCorporate: parsed.data.isCorporate,
-    isShared: parsed.data.isShared,
+    isShared: parsed.data.isShared ?? parsed.data.categoryCode === 'compartilhado',
     hasPet: parsed.data.hasPet,
     needsWheelchair: parsed.data.needsWheelchair,
     estimatedFareCentavos,
@@ -363,7 +403,32 @@ ridesRouter.post('/', async (req, res) => {
   }
 
   const passengerRep = await getPassengerReputation(req.user!.id);
-  const matched = await startMatching(ride.id, passengerRep);
+
+  let sharedPoolPayload: ReturnType<typeof toPublicPool> | undefined;
+  if (isSharedRide && parsed.data.distanceKm && parsed.data.durationMin) {
+    const shared = await registerSharedBooking({
+      rideId: ride.id,
+      passengerId: req.user!.id,
+      pickupLat: parsed.data.pickupLat,
+      pickupLng: parsed.data.pickupLng,
+      dropoffLat: parsed.data.dropoffLat,
+      dropoffLng: parsed.data.dropoffLng,
+      passengerCount: parsed.data.passengerCount,
+      hasLargeBaggage: parsed.data.hasLargeBaggage,
+      distanceKm: parsed.data.distanceKm,
+      durationMin: parsed.data.durationMin,
+    });
+    estimatedFareCentavos = shared.booking.finalFareCentavos;
+    sharedPoolPayload = toPublicPool(shared.pool, await getPoolBookings(shared.pool.id));
+    if (shared.pool.status === 'ready') {
+      await dispatchReadyPools();
+    }
+  }
+
+  const matched =
+    isSharedRide && sharedPoolPayload?.status === 'waiting'
+      ? null
+      : await startMatching(ride.id, passengerRep);
   const finalRide = matched ?? ride;
   res.status(201).json({
     ride: toPublicRide(finalRide),
@@ -373,6 +438,8 @@ ridesRouter.post('/', async (req, res) => {
     discountCentavos: discountCentavos || undefined,
     promoCode: promoCodeApplied,
     airportContext: airportCtx.isAirportRide ? airportCtx : undefined,
+    sharedPool: sharedPoolPayload,
+    sharedQuote: sharedQuoteResult ? toPublicSharedQuote(sharedQuoteResult) : undefined,
   });
 });
 

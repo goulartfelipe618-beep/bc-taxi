@@ -26,7 +26,9 @@ import { startHeartbeatJanitor } from './driver/driverLocationService.js';
 import { eventsRouter } from './routes/events.js';
 import { governanceRouter } from './routes/governance.js';
 import { airportsRouter } from './routes/airports.js';
+import { sharedRouter } from './routes/shared.js';
 import { startScheduleDispatcher } from './scheduling/scheduleService.js';
+import { startSharedPoolDispatcher } from './shared/sharedRideService.js';
 import { startOpsMetricsJanitor } from './observability/opsMetricsService.js';
 
 async function main() {
@@ -67,6 +69,7 @@ async function main() {
   app.use('/v1/events', eventsRouter);
   app.use('/v1/governance', governanceRouter);
   app.use('/v1/airports', airportsRouter);
+  app.use('/v1/shared', sharedRouter);
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);
   app.use('/v1/routes', routesRouter);
@@ -84,6 +87,7 @@ async function main() {
   const stopRedisFanout = startRedisFanout();
   const stopHeartbeatJanitor = startHeartbeatJanitor();
   const stopScheduleDispatcher = startScheduleDispatcher();
+  const stopSharedDispatcher = startSharedPoolDispatcher();
   const stopOpsJanitor = startOpsMetricsJanitor();
 
   server.listen(config.port, () => {
@@ -94,6 +98,7 @@ async function main() {
     stopRedisFanout?.();
     clearInterval(stopHeartbeatJanitor);
     clearInterval(stopScheduleDispatcher);
+    clearInterval(stopSharedDispatcher);
     clearInterval(stopOpsJanitor);
     if (!config.useMemoryDb && pool) await pool.end();
     process.exit(0);

@@ -46,4 +46,8 @@ export const config = {
   pspApiUrl: process.env.PSP_API_URL ?? '',
   pspApiSecret: process.env.PSP_API_SECRET ?? '',
   pspWebhookSecret: process.env.PSP_WEBHOOK_SECRET ?? '',
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+  mercadoPagoAccessToken: process.env.MERCADOPAGO_ACCESS_TOKEN ?? '',
+  pagarmeApiKey: process.env.PAGARME_API_KEY ?? '',
+  matchUsePostgis: process.env.MATCH_USE_POSTGIS !== 'false',
 };

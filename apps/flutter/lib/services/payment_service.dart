@@ -1,4 +1,4 @@
-import '../models/ride_category.dart';
+import '../models/payment_intent.dart';
 import 'api_client.dart';
 
 class PaymentMethod {
@@ -17,6 +17,8 @@ class PaymentMethod {
   final bool isDefault;
   final String? lastFour;
   final String? brand;
+
+  bool get isPix => type == 'pix';
 
   factory PaymentMethod.fromJson(Map<String, dynamic> json) {
     return PaymentMethod(
@@ -43,7 +45,7 @@ class PaymentService {
     return list.map(PaymentMethod.fromJson).toList();
   }
 
-  Future<RideQuote?> authorizeIntent({
+  Future<PaymentIntent> authorizeIntent({
     required String paymentMethodId,
     required int amountCentavos,
     String? rideId,
@@ -55,6 +57,39 @@ class PaymentService {
     });
     final data = _client.decodeJson(res);
     _client.throwIfError(res, data);
-    return null;
+    return PaymentIntent.fromJson(data['intent'] as Map<String, dynamic>);
   }
+
+  Future<PaymentIntent> fetchIntent(String intentId) async {
+    final res = await _client.get('/v1/payments/intents/$intentId');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return PaymentIntent.fromJson(data['intent'] as Map<String, dynamic>);
+  }
+
+  Future<PaymentIntent> pollUntilAuthorized(
+    String intentId, {
+    Duration timeout = const Duration(minutes: 5),
+    Duration interval = const Duration(seconds: 3),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      final intent = await fetchIntent(intentId);
+      if (intent.isAuthorized || intent.isCaptured) return intent;
+      if (intent.isFailed) throw ApiException('Pagamento recusado', 402);
+      await Future<void>.delayed(interval);
+    }
+    throw ApiException('Tempo esgotado aguardando pagamento PIX', 408);
+  }
+
+  Future<void> simulatePixPaid(String txid) async {
+    final res = await _client.post('/v1/payments/pix/$txid/simulate-paid');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+  }
+}
+
+PaymentIntent? parsePaymentPayload(Map<String, dynamic>? json) {
+  if (json == null) return null;
+  return PaymentIntent.fromJson(json);
 }

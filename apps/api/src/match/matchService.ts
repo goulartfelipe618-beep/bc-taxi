@@ -9,6 +9,7 @@ import {
   memoryMatchStore,
   useMemory,
 } from '../stores/memoryMatchStore.js';
+import { findNearbyDriversPostGIS, isPostgisMatchEnabled } from './geoMatchStore.js';
 import {
   cancelRidePg,
   cancelRideByDriverPg,
@@ -61,8 +62,12 @@ export async function getRide(id: string): Promise<RideRecord | null> {
   return getRidePg(id);
 }
 
-async function findOnlineDrivers() {
+async function findOnlineDrivers(pickup?: { lat: number; lng: number; radiusM?: number }) {
   if (useMemory()) return memoryMatchStore.findOnlineDrivers();
+  if (pickup && isPostgisMatchEnabled()) {
+    const nearby = await findNearbyDriversPostGIS(pickup.lat, pickup.lng, pickup.radiusM ?? 10000);
+    return nearby.map(({ distanceM: _d, ...driver }) => driver);
+  }
   return findOnlineDriversPg();
 }
 
@@ -243,7 +248,11 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
     await updateRideStatusPg(rideId, 'OFFERING', stageIndex + 1);
   }
 
-  const allDrivers = await findOnlineDrivers();
+  const allDrivers = await findOnlineDrivers({
+    lat: ride.pickupLat,
+    lng: ride.pickupLng,
+    radiusM,
+  });
   const passenger = buildPassengerContext(ride, passengerReputation);
   const eligible = await filterEligibleDrivers(allDrivers, ride, passenger, radiusM);
   const scored = scoreCandidates(eligible, ride, passenger, radiusM);

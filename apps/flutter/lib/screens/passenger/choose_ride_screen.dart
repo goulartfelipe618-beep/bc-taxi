@@ -9,6 +9,9 @@ import '../../services/catalog_service.dart';
 import '../../services/ride_service.dart';
 import '../../theme/passenger_theme.dart';
 import '../../widgets/passenger/trip_route_map.dart';
+import '../../models/payment_intent.dart';
+import '../../services/payment_service.dart';
+import 'payment/pix_payment_sheet.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
 
@@ -100,12 +103,29 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
         paymentMethodId: _paymentMethodId,
       );
       if (!mounted) return;
+
+      final payment = result.payment;
+      if (payment != null && payment.needsPixAction && payment.pix != null) {
+        final paid = await PixPaymentSheet.show(
+          context,
+          intent: payment,
+          token: token,
+        );
+        if (!mounted) return;
+        if (paid != true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Confirme o PIX para iniciar a busca pelo motorista')),
+          );
+        }
+      }
+
       PassengerRoutes.openRideActive(
         context,
         rideId: result.ride.id,
         category: _selected.name,
         destination: widget.trip.dropoffName,
         token: token,
+        initialPayment: result.payment,
       );
     } catch (e) {
       if (!mounted) return;

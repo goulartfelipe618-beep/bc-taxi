@@ -12,6 +12,7 @@ import { placesRouter, routesRouter } from './routes/mapbox.js';
 import { paymentsRouter, pspWebhookHandler } from './routes/payments.js';
 import { pricingRouter } from './routes/pricing.js';
 import { reputationRouter } from './routes/reputation.js';
+import { fraudRouter } from './routes/fraud.js';
 import { driverRouter, ridesRouter } from './routes/rides.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
 import { startHeartbeatJanitor } from './driver/driverLocationService.js';
@@ -43,6 +44,7 @@ async function main() {
   app.use('/v1/quotes', quotesRouter);
   app.use('/v1/pricing', pricingRouter);
   app.use('/v1/reputation', reputationRouter);
+  app.use('/v1/fraud', fraudRouter);
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);
   app.use('/v1/routes', routesRouter);

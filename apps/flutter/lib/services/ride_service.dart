@@ -1,12 +1,18 @@
+import '../models/payment_intent.dart';
 import '../models/ride.dart';
 import '../models/trip_draft.dart';
 import 'api_client.dart';
 
 class CreateRideResult {
-  const CreateRideResult({required this.ride, this.paymentIntentId});
+  const CreateRideResult({
+    required this.ride,
+    this.paymentIntentId,
+    this.payment,
+  });
 
   final RideRecord ride;
   final String? paymentIntentId;
+  final PaymentIntent? payment;
 }
 
 class RideService {
@@ -36,6 +42,9 @@ class RideService {
     return CreateRideResult(
       ride: RideRecord.fromJson(data['ride'] as Map<String, dynamic>),
       paymentIntentId: data['paymentIntentId'] as String?,
+      payment: data['payment'] != null
+          ? PaymentIntent.fromJson(data['payment'] as Map<String, dynamic>)
+          : null,
     );
   }
 

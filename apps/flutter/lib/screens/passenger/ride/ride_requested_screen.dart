@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../models/payment_intent.dart';
 import '../../../models/ride.dart';
 import '../../../services/api_client.dart';
+import '../../../services/payment_service.dart';
 import '../../../services/realtime_service.dart';
 import '../../../services/ride_service.dart';
 import '../../../theme/passenger_theme.dart';
 import '../../../widgets/passenger/ride_review_sheet.dart';
+import '../payment/pix_payment_sheet.dart';
 import 'ride_tracking_map.dart';
 
 class RideActiveScreen extends StatefulWidget {
@@ -18,12 +21,14 @@ class RideActiveScreen extends StatefulWidget {
     required this.categoryName,
     required this.destination,
     required this.token,
+    this.initialPayment,
   });
 
   final String rideId;
   final String categoryName;
   final String destination;
   final String token;
+  final PaymentIntent? initialPayment;
 
   @override
   State<RideActiveScreen> createState() => _RideActiveScreenState();
@@ -31,9 +36,11 @@ class RideActiveScreen extends StatefulWidget {
 
 class _RideActiveScreenState extends State<RideActiveScreen> {
   late final RideService _rideService = RideService(ApiClient(widget.token));
+  late final PaymentService _paymentService = PaymentService(ApiClient(widget.token));
   late final RealtimeService _realtime = RealtimeService(token: widget.token);
   Timer? _pollTimer;
   RideDetail? _detail;
+  PaymentIntent? _payment;
   DriverLocation? _liveDriverLocation;
   DateTime? _lastLocationUiUpdate;
   String? _error;
@@ -48,6 +55,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   @override
   void initState() {
     super.initState();
+    _payment = widget.initialPayment;
     _realtime.addListener(_onRealtimeEvent);
     _realtime.connect();
     _realtime.subscribeRide(widget.rideId);
@@ -83,6 +91,11 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
       return;
     }
 
+    if (type == 'PAYMENT_AUTHORIZED' || type == 'PAYMENT_CAPTURED' || type == 'PAYMENT_FAILED') {
+      _refreshPayment();
+      return;
+    }
+
     if (type != null &&
         (type.startsWith('RIDE_') || type == 'DRIVER_LOCATION_UPDATED')) {
       _poll();
@@ -98,12 +111,31 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
     super.dispose();
   }
 
+  Future<void> _refreshPayment() async {
+    final intentId = _payment?.id ?? _detail?.payment?.id ?? _ride?.paymentIntentId;
+    if (intentId == null) return;
+    try {
+      final intent = await _paymentService.fetchIntent(intentId);
+      if (!mounted) return;
+      setState(() => _payment = intent);
+    } catch (_) {}
+  }
+
+  Future<void> _openPixSheet() async {
+    final intent = _payment ?? _detail?.payment;
+    if (intent == null || intent.pix == null) return;
+    await PixPaymentSheet.show(context, intent: intent, token: widget.token);
+    await _refreshPayment();
+    await _poll();
+  }
+
   Future<void> _poll() async {
     try {
       final detail = await _rideService.getRide(widget.rideId);
       if (!mounted) return;
       setState(() {
         _detail = detail;
+        _payment = detail.payment ?? _payment;
         _error = null;
       });
       if (detail.ride.isTerminal) {
@@ -200,6 +232,21 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
+            if (_payment != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: PaymentStatusBanner(intent: _payment!),
+              ),
+              if (_payment!.needsPixAction && _payment!.pix != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: OutlinedButton.icon(
+                    onPressed: _openPixSheet,
+                    icon: const Icon(Icons.qr_code_2),
+                    label: const Text('Abrir QR PIX'),
+                  ),
+                ),
+            ],
             if (showMap) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

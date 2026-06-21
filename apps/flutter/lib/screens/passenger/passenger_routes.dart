@@ -20,6 +20,7 @@ import 'choose_ride_screen.dart';
 import 'confirm_pickup_screen.dart';
 import 'payment/payment_methods_screen.dart';
 import 'plan_trip_screen.dart';
+import '../../models/payment_intent.dart';
 import 'ride/ride_requested_screen.dart';
 import 'schedule/schedule_ride_screen.dart';
 
@@ -139,6 +140,7 @@ class PassengerRoutes {
     required String category,
     required String destination,
     required String token,
+    PaymentIntent? initialPayment,
   }) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -147,6 +149,7 @@ class PassengerRoutes {
           categoryName: category,
           destination: destination,
           token: token,
+          initialPayment: initialPayment,
         ),
       ),
     );

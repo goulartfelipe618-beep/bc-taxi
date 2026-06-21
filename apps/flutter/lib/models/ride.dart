@@ -1,3 +1,5 @@
+import 'payment_intent.dart';
+
 class RideVerification {
   const RideVerification({
     required this.passengerVerified,
@@ -190,12 +192,19 @@ class RideTracking {
 }
 
 class RideDetail {
-  const RideDetail({required this.ride, this.verification, this.startCodes, this.tracking});
+  const RideDetail({
+    required this.ride,
+    this.verification,
+    this.startCodes,
+    this.tracking,
+    this.payment,
+  });
 
   final RideRecord ride;
   final RideVerification? verification;
   final StartCodes? startCodes;
   final RideTracking? tracking;
+  final PaymentIntent? payment;
 
   factory RideDetail.fromJson(Map<String, dynamic> json) {
     return RideDetail(
@@ -208,6 +217,9 @@ class RideDetail {
           : null,
       tracking: json['tracking'] != null
           ? RideTracking.fromJson(json['tracking'] as Map<String, dynamic>)
+          : null,
+      payment: json['payment'] != null
+          ? PaymentIntent.fromJson(json['payment'] as Map<String, dynamic>)
           : null,
     );
   }

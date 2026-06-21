@@ -8,6 +8,9 @@ import type {
   PspProvider,
   PspVoidParams,
 } from './types.js';
+import { createMercadoPagoProvider, MercadoPagoDemoPspProvider } from './mercadoPagoProvider.js';
+import { createPagarmeProvider } from './pagarmeProvider.js';
+import { createStripeProvider } from './stripeProvider.js';
 
 function makeTxid(seed: string): string {
   return createHash('sha256').update(seed).digest('hex').slice(0, 32);
@@ -115,10 +118,32 @@ let cached: PspProvider | null = null;
 
 export function getPspProvider(): PspProvider {
   if (cached) return cached;
-  if (config.pspProvider === 'http' && config.pspApiUrl && config.pspApiSecret) {
-    cached = new HttpPspProvider(config.pspApiUrl, config.pspApiSecret, config.pspProvider);
-  } else {
-    cached = new DemoPspProvider();
+
+  switch (config.pspProvider) {
+    case 'stripe':
+      cached = config.stripeSecretKey ? createStripeProvider() : new DemoPspProvider();
+      break;
+    case 'mercadopago':
+      cached = config.mercadoPagoAccessToken
+        ? createMercadoPagoProvider()
+        : new MercadoPagoDemoPspProvider();
+      break;
+    case 'pagarme':
+      cached = createPagarmeProvider();
+      break;
+    case 'http':
+      cached =
+        config.pspApiUrl && config.pspApiSecret
+          ? new HttpPspProvider(config.pspApiUrl, config.pspApiSecret, config.pspProvider)
+          : new DemoPspProvider();
+      break;
+    default:
+      cached = new DemoPspProvider();
   }
+
   return cached;
+}
+
+export function resetPspProviderCache() {
+  cached = null;
 }

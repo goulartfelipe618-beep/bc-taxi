@@ -18,11 +18,13 @@ import {
 import type { RideRecord, RideStatus } from '../match/types.js';
 import { DEMO_PAYMENT_METHOD_IDS } from '../payments/paymentStore.js';
 import { assertUserNotBlocked, checkGpsIntegrity, recordFraudSignal } from '../fraud/fraudService.js';
+import { toPublicPaymentIntent } from '../payments/types.js';
 import {
   attachIntentToRide,
   authorizeRidePayment,
-  cancelRidePayment,
+  getIntentPix,
 } from '../payments/paymentService.js';
+import { evaluateRideRisk } from '../fraud/riskEngine.js';
 import {
   driverCompleteRide,
   driverMarkArrived,
@@ -171,14 +173,28 @@ ridesRouter.post('/', async (req, res) => {
 
   const paymentMethodIdFinal = paymentMethodId;
   let paymentIntentId: string | undefined;
+  let paymentPayload: ReturnType<typeof toPublicPaymentIntent> | undefined;
+
+  const deviceId = req.header('x-device-id') ?? undefined;
+  const risk = await evaluateRideRisk({
+    userId: req.user!.id,
+    deviceId,
+    paymentMethodType: methodType,
+    amountCentavos: estimatedFareCentavos,
+  });
+  if (risk.decision === 'block') {
+    res.status(403).json({ error: 'Solicitação bloqueada por análise de risco', risk });
+    return;
+  }
 
   try {
-    const intent = await authorizeRidePayment({
+    const { intent, pix } = await authorizeRidePayment({
       userId: req.user!.id,
       paymentMethodId: paymentMethodIdFinal,
       amountCentavos: estimatedFareCentavos ?? 5000,
     });
     paymentIntentId = intent.id;
+    paymentPayload = toPublicPaymentIntent(intent, pix);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Falha ao autorizar pagamento';
     res.status(402).json({ error: message });
@@ -220,7 +236,12 @@ ridesRouter.post('/', async (req, res) => {
   const passengerRep = await getPassengerReputation(req.user!.id);
   const matched = await startMatching(ride.id, passengerRep);
   const finalRide = matched ?? ride;
-  res.status(201).json({ ride: toPublicRide(finalRide), paymentIntentId });
+  res.status(201).json({
+    ride: toPublicRide(finalRide),
+    paymentIntentId,
+    payment: paymentPayload,
+    risk,
+  });
 });
 
 ridesRouter.get('/:id', async (req, res) => {
@@ -236,6 +257,15 @@ ridesRouter.get('/:id', async (req, res) => {
   const verification = await getRideVerification(ride.id);
   const tracking = await getRideTracking(ride);
   let startCodes: { yours: string; partner: string } | undefined;
+  let payment: ReturnType<typeof toPublicPaymentIntent> | undefined;
+  if (ride.paymentIntentId) {
+    const { getIntentById } = await import('../payments/paymentService.js');
+    const intent = await getIntentById(ride.paymentIntentId);
+    if (intent) {
+      const pix = await getIntentPix(intent.id);
+      payment = toPublicPaymentIntent(intent, pix ?? undefined);
+    }
+  }
   if (useMemory()) {
     const plain = getPlainCodesForTest(ride.id);
     if (plain) {
@@ -249,6 +279,7 @@ ridesRouter.get('/:id', async (req, res) => {
   res.json({
     ride: toPublicRide(ride),
     verification,
+    ...(payment ? { payment } : {}),
     ...(tracking ? { tracking: toPublicTracking(tracking) } : {}),
     ...(startCodes ? { startCodes } : {}),
   });

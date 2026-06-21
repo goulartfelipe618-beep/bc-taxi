@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
 
@@ -9,9 +10,12 @@ class ApiClient {
 
   final String token;
 
+  static final String deviceId = 'flutter-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(99999)}';
+
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
+        'X-Device-Id': deviceId,
       };
 
   Future<http.Response> get(String path) {

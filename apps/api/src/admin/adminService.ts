@@ -8,6 +8,8 @@ export interface AdminOverview {
   openFraudCases: number;
   pushSentToday: number;
   receiptsIssuedToday: number;
+  pendingCorporateInvoices: number;
+  activeDeliveries: number;
 }
 
 export async function getAdminOverview(): Promise<AdminOverview> {
@@ -19,6 +21,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       openFraudCases: 0,
       pushSentToday: 0,
       receiptsIssuedToday: 0,
+      pendingCorporateInvoices: 0,
+      activeDeliveries: 0,
     };
   }
 
@@ -29,7 +33,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       (SELECT COUNT(*)::int FROM drivers WHERE is_online = TRUE AND operational_status = 'online') AS online_drivers,
       (SELECT COUNT(*)::int FROM fraud_cases WHERE status = 'open') AS open_fraud_cases,
       (SELECT COUNT(*)::int FROM push_notification_log WHERE status = 'sent' AND created_at >= CURRENT_DATE) AS push_sent_today,
-      (SELECT COUNT(*)::int FROM ride_receipts WHERE issued_at >= CURRENT_DATE) AS receipts_today
+      (SELECT COUNT(*)::int FROM ride_receipts WHERE issued_at >= CURRENT_DATE) AS receipts_today,
+      (SELECT COUNT(*)::int FROM corporate_invoice_lines WHERE status = 'pending') AS pending_corporate,
+      (SELECT COUNT(*)::int FROM delivery_jobs WHERE status IN ('created','pickup_confirmed','in_transit')) AS active_deliveries
   `);
 
   const r = rows[0];
@@ -40,6 +46,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     openFraudCases: r?.open_fraud_cases ?? 0,
     pushSentToday: r?.push_sent_today ?? 0,
     receiptsIssuedToday: r?.receipts_today ?? 0,
+    pendingCorporateInvoices: r?.pending_corporate ?? 0,
+    activeDeliveries: r?.active_deliveries ?? 0,
   };
 }
 

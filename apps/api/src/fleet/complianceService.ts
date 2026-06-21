@@ -82,7 +82,14 @@ export async function isDriverCompliantForCategory(
   const profile = await getDriverCompliance(driverId);
   if (!profile.canOperate) return false;
   if (!profile.activeVehicle) return false;
-  return vehicleMeetsCategory(profile.activeVehicle, categoryCode);
+  if (!vehicleMeetsCategory(profile.activeVehicle, categoryCode)) return false;
+
+  if (categoryCode === 'corporativo') {
+    const b2b = profile.driverDocuments.find((d) => d.docType === 'B2B_BILLING');
+    if (!b2b || !isDocValid(b2b)) return false;
+  }
+
+  return true;
 }
 
 export function toPublicCompliance(p: DriverComplianceProfile) {

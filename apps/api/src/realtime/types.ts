@@ -20,7 +20,10 @@ export type RealtimeEventType =
   | 'ROUTE_RECALCULATED'
   | 'PAYMENT_FAILED'
   | 'SCHEDULED_RIDE_CREATED'
-  | 'SCHEDULED_RIDE_DISPATCHED';
+  | 'SCHEDULED_RIDE_DISPATCHED'
+  | 'DELIVERY_CREATED'
+  | 'DELIVERY_PICKUP_CONFIRMED'
+  | 'DELIVERY_COMPLETED';
 
 export interface RealtimeEvent<T = Record<string, unknown>> {
   eventId: string;

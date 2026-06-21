@@ -54,6 +54,7 @@ import {
   updateDriverLocation,
 } from '../driver/driverLocationService.js';
 import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
+import { publicPromosBlockedForCorporate } from '../corporate/corporateService.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -178,6 +179,10 @@ ridesRouter.post('/', async (req, res) => {
   let promoRecord: Awaited<ReturnType<typeof validatePromoCode>>['promo'];
 
   if (parsed.data.couponCode && estimatedFareCentavos && estimatedFareCentavos > 0) {
+    if (parsed.data.isCorporate || (await publicPromosBlockedForCorporate(req.user!.id))) {
+      res.status(400).json({ error: 'Cupons públicos não aplicáveis a viagens corporativas' });
+      return;
+    }
     const coupon = await validatePromoCode({
       code: parsed.data.couponCode,
       userId: req.user!.id,

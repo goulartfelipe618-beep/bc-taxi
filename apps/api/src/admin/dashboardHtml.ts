@@ -38,7 +38,8 @@ export function renderAdminDashboardHtml(apiBase: string) {
         const o=ov.overview;
         document.getElementById('kpis').innerHTML=[
           ['Corridas hoje',o.ridesToday],['Ativas',o.activeRides],['Motoristas online',o.onlineDrivers],
-          ['Fraudes abertas',o.openFraudCases],['Push hoje',o.pushSentToday],['Recibos hoje',o.receiptsIssuedToday]
+          ['Fraudes abertas',o.openFraudCases],['Push hoje',o.pushSentToday],['Recibos hoje',o.receiptsIssuedToday],
+          ['Faturas corp. pendentes',o.pendingCorporateInvoices],['Entregas ativas',o.activeDeliveries]
         ].map(([l,v])=>'<div class="card"><h2>'+l+'</h2><p>'+v+'</p></div>').join('');
         const rides=await fetch(base+'/v1/admin/rides?limit=15',{headers:hdr()}).then(r=>r.json());
         document.getElementById('rides').innerHTML=(rides.rides||[]).map(r=>'<tr><td>'+r.id.slice(0,8)+'…</td><td>'+r.status+'</td><td>'+r.categoryCode+'</td><td>'+r.createdAt.slice(0,16)+'</td></tr>').join('');

@@ -27,6 +27,7 @@ import { eventsRouter } from './routes/events.js';
 import { governanceRouter } from './routes/governance.js';
 import { airportsRouter } from './routes/airports.js';
 import { sharedRouter } from './routes/shared.js';
+import { accessibilityRouter } from './routes/accessibility.js';
 import { startScheduleDispatcher } from './scheduling/scheduleService.js';
 import { startSharedPoolDispatcher } from './shared/sharedRideService.js';
 import { startOpsMetricsJanitor } from './observability/opsMetricsService.js';
@@ -70,6 +71,7 @@ async function main() {
   app.use('/v1/governance', governanceRouter);
   app.use('/v1/airports', airportsRouter);
   app.use('/v1/shared', sharedRouter);
+  app.use('/v1/accessibility', accessibilityRouter);
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);
   app.use('/v1/routes', routesRouter);

@@ -29,6 +29,8 @@ export interface RideRecord {
   isShared: boolean;
   hasPet: boolean;
   needsWheelchair: boolean;
+  accessibilityNeedCode?: string;
+  assistiveDeviceCount?: number;
   estimatedFareCentavos?: number;
   rideVersion: number;
   matchStage: number;
@@ -119,6 +121,8 @@ export interface RideRequestInput {
   isShared?: boolean;
   hasPet?: boolean;
   needsWheelchair?: boolean;
+  accessibilityNeedCode?: string;
+  assistiveDeviceCount?: number;
   estimatedFareCentavos?: number;
   passengerReputation?: number;
 }

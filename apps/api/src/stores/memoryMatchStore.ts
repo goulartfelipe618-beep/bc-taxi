@@ -142,6 +142,8 @@ export const memoryMatchStore = {
       isShared: input.isShared ?? false,
       hasPet: input.hasPet ?? false,
       needsWheelchair: input.needsWheelchair ?? false,
+      accessibilityNeedCode: input.accessibilityNeedCode,
+      assistiveDeviceCount: input.assistiveDeviceCount ?? 0,
       estimatedFareCentavos: input.estimatedFareCentavos,
       rideVersion: 1,
       matchStage: 0,
@@ -314,8 +316,9 @@ export async function createRidePg(input: RideRequestInput): Promise<RideRecord>
     `INSERT INTO rides (
       passenger_id, category_code, pickup_lat, pickup_lng, pickup_address,
       dropoff_lat, dropoff_lng, dropoff_address, passenger_count,
-      is_corporate, is_shared, has_pet, needs_wheelchair, estimated_fare_centavos
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      is_corporate, is_shared, has_pet, needs_wheelchair, estimated_fare_centavos,
+      accessibility_need_code, assistive_device_count
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     RETURNING *`,
     [
       input.passengerId,
@@ -332,6 +335,8 @@ export async function createRidePg(input: RideRequestInput): Promise<RideRecord>
       input.hasPet ?? false,
       input.needsWheelchair ?? false,
       input.estimatedFareCentavos ?? null,
+      input.accessibilityNeedCode ?? null,
+      input.assistiveDeviceCount ?? 0,
     ],
   );
   return mapRideRow(result.rows[0]);
@@ -355,6 +360,8 @@ export function mapRideRow(row: Record<string, unknown>): RideRecord {
     isShared: Boolean(row.is_shared),
     hasPet: Boolean(row.has_pet),
     needsWheelchair: Boolean(row.needs_wheelchair),
+    accessibilityNeedCode: (row.accessibility_need_code as string) ?? undefined,
+    assistiveDeviceCount: row.assistive_device_count != null ? Number(row.assistive_device_count) : undefined,
     estimatedFareCentavos: row.estimated_fare_centavos != null ? Number(row.estimated_fare_centavos) : undefined,
     rideVersion: Number(row.ride_version),
     matchStage: Number(row.match_stage),

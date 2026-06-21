@@ -4,6 +4,12 @@ import { computeMatchScore } from '../domain/match.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { isPairBlocked } from './blockService.js';
 import { isDriverCompliantForCategory } from '../fleet/complianceService.js';
+import {
+  driverHasPcdOptIn,
+  isDriverCompatibleWithNeed,
+  resolveAccessibilityNeed,
+  type AccessibilityNeedCode,
+} from '../accessibility/accessibilityService.js';
 import type { DriverRecord, PassengerContext, RideRecord, ScoredCandidate } from './types.js';
 
 const LOCATION_SLA_SECONDS = 120;
@@ -66,12 +72,24 @@ function passesCategoryHardRules(driver: DriverRecord, ride: RideRecord): boolea
     return false;
   }
 
-  if (ride.needsWheelchair && !driver.wheelchairAccessible) return false;
   if (ride.hasPet && !driver.petReady) return false;
   if (category.code === 'comfort' && !driver.comfortApproved) return false;
   if (ride.passengerCount > category.passengerLimitMax) return false;
 
+  const needCode = resolveRideNeedCode(ride);
+  if (needCode === 'wheelchair' && !driver.wheelchairAccessible) return false;
+
   return driverSupportsCategory(driver, ride.categoryCode) > 0;
+}
+
+function resolveRideNeedCode(ride: RideRecord): AccessibilityNeedCode | undefined {
+  if (ride.accessibilityNeedCode) {
+    return ride.accessibilityNeedCode as AccessibilityNeedCode;
+  }
+  return resolveAccessibilityNeed({
+    categoryCode: ride.categoryCode,
+    needsWheelchair: ride.needsWheelchair,
+  });
 }
 
 export async function filterEligibleDrivers(
@@ -94,6 +112,9 @@ export async function filterEligibleDrivers(
     if (await isPairBlocked(passenger.passengerId, driver.userId)) continue;
     if (!(await isDriverCompliantForCategory(driver.userId, ride.categoryCode))) continue;
 
+    const needCode = resolveRideNeedCode(ride);
+    if (needCode && !(await isDriverCompatibleWithNeed(driver, needCode))) continue;
+
     eligible.push(driver);
   }
 
@@ -111,6 +132,8 @@ export function scoreCandidates(
   const passengerTier = getTier(passenger.reputationScore);
   const isPassengerElite = passengerTier === 'elite';
   const isPassengerPremium = passengerTier === 'premium' || isPassengerElite;
+
+  const needCode = resolveRideNeedCode(ride);
 
   const scored: ScoredCandidate[] = drivers.map((driver) => {
     const distanceM = haversineMeters(ride.pickupLat, ride.pickupLng, driver.lat!, driver.lng!);
@@ -145,7 +168,8 @@ export function scoreCandidates(
       isDriverElite,
       isDriverPremium,
       isCorporate: ride.isCorporate,
-      isPcdAdapted: ride.needsWheelchair && driver.wheelchairAccessible,
+      isPcdAdapted: Boolean(needCode) && driver.wheelchairAccessible && needCode === 'wheelchair',
+      isPcdPriority: Boolean(needCode) && driverHasPcdOptIn(driver),
       isShared: ride.isShared,
     });
 

@@ -102,6 +102,7 @@ export interface MatchConfig {
   driverEliteBonus: number;
   driverPremiumBonus: number;
   corporateBonus: number;
+  pcdPriorityBonus: number;
   sequentialOfferTimeoutSeconds: number;
   parallelBatchSizeMin: number;
   parallelBatchSizeMax: number;

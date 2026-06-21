@@ -7,7 +7,7 @@ export const MATCH_CONFIG: MatchConfig = {
   passengerPremiumBonus: 0.03,
   driverEliteBonus: 0.05,
   driverPremiumBonus: 0.025,
-  corporateBonus: 0.04,
+  pcdPriorityBonus: 0.1,
   sequentialOfferTimeoutSeconds: 6,
   parallelBatchSizeMin: 3,
   parallelBatchSizeMax: 5,
@@ -28,6 +28,7 @@ export type MatchCandidateInput = {
   isDriverPremium?: boolean;
   isCorporate?: boolean;
   isPcdAdapted?: boolean;
+  isPcdPriority?: boolean;
   isShared?: boolean;
   extraEtaSeconds?: number;
 };
@@ -58,6 +59,7 @@ export function computeMatchScore(input: MatchCandidateInput): number {
   if (input.isDriverElite) score += MATCH_CONFIG.driverEliteBonus;
   if (input.isDriverPremium) score += MATCH_CONFIG.driverPremiumBonus;
   if (input.isCorporate) score += MATCH_CONFIG.corporateBonus;
+  if (input.isPcdPriority) score += MATCH_CONFIG.pcdPriorityBonus;
   if (input.isShared && input.extraEtaSeconds != null) {
     const detour = clamp(input.extraEtaSeconds / (12 * 60), 0, 0.2);
     score -= detour;

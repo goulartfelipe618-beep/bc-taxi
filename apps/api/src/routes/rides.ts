@@ -70,6 +70,11 @@ import {
   toPublicPool,
   toPublicSharedQuote,
 } from '../shared/sharedRideService.js';
+import {
+  registerAccessibilityRequest,
+  toPublicAccessibilityRequest,
+  validateAccessibilityBooking,
+} from '../accessibility/accessibilityService.js';
 
 const createRideSchema = z.object({
   categoryCode: z.string(),
@@ -91,6 +96,11 @@ const createRideSchema = z.object({
   couponCode: z.string().optional(),
   routeRequestId: z.string().uuid().optional(),
   routeStrategy: z.enum(['fastest', 'shortest', 'economical', 'less_traffic']).optional(),
+  accessibilityNeedCode: z
+    .enum(['wheelchair', 'walker', 'mobility_aid', 'visual_assistance', 'hearing_assistance'])
+    .optional(),
+  assistiveDeviceCount: z.number().int().min(0).max(3).optional(),
+  accessibilityNotes: z.string().max(300).optional(),
 });
 
 const verifyCodeSchema = z.object({
@@ -161,6 +171,17 @@ ridesRouter.post('/', async (req, res) => {
       error: 'Reputação insuficiente para esta categoria',
       reputationScore: passengerRepScore,
     });
+    return;
+  }
+
+  const accessibilityCheck = await validateAccessibilityBooking({
+    categoryCode: parsed.data.categoryCode,
+    accessibilityNeedCode: parsed.data.accessibilityNeedCode,
+    needsWheelchair: parsed.data.needsWheelchair,
+    assistiveDeviceCount: parsed.data.assistiveDeviceCount,
+  });
+  if (!accessibilityCheck.ok) {
+    res.status(400).json({ error: accessibilityCheck.reason });
     return;
   }
 
@@ -322,9 +343,22 @@ ridesRouter.post('/', async (req, res) => {
     isCorporate: parsed.data.isCorporate,
     isShared: parsed.data.isShared ?? parsed.data.categoryCode === 'compartilhado',
     hasPet: parsed.data.hasPet,
-    needsWheelchair: parsed.data.needsWheelchair,
+    needsWheelchair: accessibilityCheck.needsWheelchair,
+    accessibilityNeedCode: accessibilityCheck.needCode,
+    assistiveDeviceCount: parsed.data.assistiveDeviceCount,
     estimatedFareCentavos,
   });
+
+  let accessibilityPayload: ReturnType<typeof toPublicAccessibilityRequest> | undefined;
+  if (accessibilityCheck.needCode) {
+    const req_ = await registerAccessibilityRequest({
+      rideId: ride.id,
+      needCode: accessibilityCheck.needCode,
+      assistiveDeviceCount: parsed.data.assistiveDeviceCount,
+      notes: parsed.data.accessibilityNotes,
+    });
+    accessibilityPayload = toPublicAccessibilityRequest(req_);
+  }
 
   if (paymentIntentId) {
     await attachIntentToRide(ride.id, paymentIntentId);
@@ -470,6 +504,7 @@ ridesRouter.post('/', async (req, res) => {
     sharedPool: sharedPoolPayload,
     sharedQuote: sharedQuoteResult ? toPublicSharedQuote(sharedQuoteResult) : undefined,
     routeQuote: routeQuotePayload,
+    accessibility: accessibilityPayload,
   });
 });
 

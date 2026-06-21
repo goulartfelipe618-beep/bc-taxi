@@ -392,8 +392,8 @@ export const RIDE_CATEGORIES: RideCategoryDefinition[] = [
     requiresScheduling: false,
     driverRequirements: { minRating: 4.75, requiresPcdTraining: true },
     vehicleRequirements: {
-      summary: 'Adaptação homologada para cadeira de rodas ou necessidade informada',
-      requiresWheelchairAccess: true,
+      summary: 'Adaptação homologada quando necessidade exige cadeira de rodas',
+      requiresWheelchairAccess: false,
       minSeats: 3,
     },
     acceptanceRules: 'Preferência alta; bloqueio se veículo não atender necessidade declarada',

@@ -6,9 +6,9 @@ import {
 import type { RideCategoryCode } from '../domain/types.js';
 import { config } from '../config.js';
 import { pool } from '../db.js';
-import { useMemory } from '../stores/memoryMatchStore.js';
+import { useMemory, memoryMatchStore } from '../stores/memoryMatchStore.js';
 import { getRegionalWeatherPressure } from '../weather/weatherService.js';
-import { memoryMatchStore } from '../stores/memoryMatchStore.js';
+import { computeEventPressure } from '../events/eventSurgeService.js';
 
 export interface DynamicPricingFactors {
   demandPressure: number;
@@ -77,10 +77,12 @@ export async function computeLiveFactors(lat?: number, lng?: number): Promise<Dy
     }
   }
 
+  const eventPressure = await computeEventPressure(lat, lng, undefined);
+
   return {
     demandPressure,
     weatherPressure,
-    eventPressure: 0,
+    eventPressure,
     airportPressure: 0,
     trafficPressure: Math.min(0.25, supplyShortage * 0.3),
     supplyShortage,

@@ -10,6 +10,8 @@ export interface AdminOverview {
   receiptsIssuedToday: number;
   pendingCorporateInvoices: number;
   activeDeliveries: number;
+  activeSurgeEvents: number;
+  openOpsAlerts: number;
 }
 
 export async function getAdminOverview(): Promise<AdminOverview> {
@@ -23,6 +25,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       receiptsIssuedToday: 0,
       pendingCorporateInvoices: 0,
       activeDeliveries: 0,
+      activeSurgeEvents: 0,
+      openOpsAlerts: 0,
     };
   }
 
@@ -35,7 +39,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       (SELECT COUNT(*)::int FROM push_notification_log WHERE status = 'sent' AND created_at >= CURRENT_DATE) AS push_sent_today,
       (SELECT COUNT(*)::int FROM ride_receipts WHERE issued_at >= CURRENT_DATE) AS receipts_today,
       (SELECT COUNT(*)::int FROM corporate_invoice_lines WHERE status = 'pending') AS pending_corporate,
-      (SELECT COUNT(*)::int FROM delivery_jobs WHERE status IN ('created','pickup_confirmed','in_transit')) AS active_deliveries
+      (SELECT COUNT(*)::int FROM delivery_jobs WHERE status IN ('created','pickup_confirmed','in_transit')) AS active_deliveries,
+      (SELECT COUNT(*)::int FROM event_surge_inputs WHERE is_active = TRUE AND starts_at <= NOW() AND ends_at >= NOW()) AS active_surge_events,
+      (SELECT COUNT(*)::int FROM ops_alerts WHERE status = 'open') AS open_ops_alerts
   `);
 
   const r = rows[0];
@@ -48,6 +54,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     receiptsIssuedToday: r?.receipts_today ?? 0,
     pendingCorporateInvoices: r?.pending_corporate ?? 0,
     activeDeliveries: r?.active_deliveries ?? 0,
+    activeSurgeEvents: r?.active_surge_events ?? 0,
+    openOpsAlerts: r?.open_ops_alerts ?? 0,
   };
 }
 

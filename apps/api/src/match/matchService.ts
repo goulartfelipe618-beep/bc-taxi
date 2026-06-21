@@ -33,6 +33,8 @@ import {
   usesSequentialOffer,
 } from './eligibility.js';
 import type { PassengerContext, RideRecord, RideRequestInput, ScoredCandidate } from './types.js';
+import { logRideDecision } from '../observability/decisionLogService.js';
+import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { emitEvent } from '../realtime/eventBus.js';
 import {
   blockDriverCancelledPassengerRedispatch,
@@ -303,6 +305,12 @@ export async function startMatching(rideId: string, passengerReputation = 4.7) {
   try {
     const ride = await getRide(rideId);
     if (ride) {
+      void logRideDecision({
+        rideId,
+        decisionType: 'MATCH_STARTED',
+        stage: 'stage_1',
+        payload: { categoryCode: ride.categoryCode, passengerReputation },
+      });
       void emitEvent('RIDE_REQUESTED', 'ride', rideId, { categoryCode: ride.categoryCode }, {
         rideId,
         userIds: [ride.passengerId],
@@ -347,6 +355,19 @@ export async function acceptOffer(offerId: string, driverId: string): Promise<Ri
   if (useMemory()) {
     const assigned = await memoryMatchStore.assignDriverToRide(ride.id, driverId);
     if (assigned) {
+      const assignMs = Date.now() - ride.createdAt.getTime();
+      recordRideMetric({
+        rideId: ride.id,
+        categoryCode: ride.categoryCode,
+        requestToAssignMs: assignMs,
+        accepted: true,
+        booked: true,
+      });
+      void logRideDecision({
+        rideId: ride.id,
+        decisionType: 'DRIVER_ASSIGNED',
+        payload: { driverId, offerId, assignMs },
+      });
       void emitEvent(
         'RIDE_ACCEPTED',
         'ride',
@@ -364,6 +385,19 @@ export async function acceptOffer(offerId: string, driverId: string): Promise<Ri
   }
   const assignedPg = await assignDriverToRidePg(ride.id, driverId, ride.rideVersion);
   if (assignedPg) {
+    const assignMs = Date.now() - ride.createdAt.getTime();
+    recordRideMetric({
+      rideId: ride.id,
+      categoryCode: ride.categoryCode,
+      requestToAssignMs: assignMs,
+      accepted: true,
+      booked: true,
+    });
+    void logRideDecision({
+      rideId: ride.id,
+      decisionType: 'DRIVER_ASSIGNED',
+      payload: { driverId, offerId, assignMs },
+    });
     void emitEvent(
       'RIDE_ACCEPTED',
       'ride',

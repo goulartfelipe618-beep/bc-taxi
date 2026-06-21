@@ -28,6 +28,8 @@ export function renderAdminDashboardHtml(apiBase: string) {
   <main id="kpis"></main>
   <section><h3>Corridas recentes</h3><table><thead><tr><th>ID</th><th>Status</th><th>Categoria</th><th>Criada</th></tr></thead><tbody id="rides"></tbody></table></section>
   <section><h3>Fraudes abertas</h3><table><thead><tr><th>Usuário</th><th>Risco</th><th>Resumo</th></tr></thead><tbody id="fraud"></tbody></table></section>
+  <section><h3>Alertas operacionais</h3><table><thead><tr><th>Severidade</th><th>Resumo</th><th>Métrica</th></tr></thead><tbody id="alerts"></tbody></table></section>
+  <section><h3>Eventos surge ativos</h3><table><thead><tr><th>Nome</th><th>Tipo</th><th>Intensidade</th><th>Até</th></tr></thead><tbody id="events"></tbody></table></section>
   <script>
     const base = ${JSON.stringify(apiBase)};
     function hdr(){const k=document.getElementById('key').value;return {'X-Admin-Key':k};}
@@ -39,12 +41,17 @@ export function renderAdminDashboardHtml(apiBase: string) {
         document.getElementById('kpis').innerHTML=[
           ['Corridas hoje',o.ridesToday],['Ativas',o.activeRides],['Motoristas online',o.onlineDrivers],
           ['Fraudes abertas',o.openFraudCases],['Push hoje',o.pushSentToday],['Recibos hoje',o.receiptsIssuedToday],
-          ['Faturas corp. pendentes',o.pendingCorporateInvoices],['Entregas ativas',o.activeDeliveries]
+          ['Faturas corp. pendentes',o.pendingCorporateInvoices],['Entregas ativas',o.activeDeliveries],
+          ['Eventos surge',o.activeSurgeEvents],['Alertas ops',o.openOpsAlerts]
         ].map(([l,v])=>'<div class="card"><h2>'+l+'</h2><p>'+v+'</p></div>').join('');
         const rides=await fetch(base+'/v1/admin/rides?limit=15',{headers:hdr()}).then(r=>r.json());
         document.getElementById('rides').innerHTML=(rides.rides||[]).map(r=>'<tr><td>'+r.id.slice(0,8)+'…</td><td>'+r.status+'</td><td>'+r.categoryCode+'</td><td>'+r.createdAt.slice(0,16)+'</td></tr>').join('');
         const fraud=await fetch(base+'/v1/admin/fraud/cases',{headers:hdr()}).then(r=>r.json());
         document.getElementById('fraud').innerHTML=(fraud.cases||[]).map(c=>'<tr><td>'+c.userId.slice(0,8)+'…</td><td>'+c.riskScore+'</td><td>'+c.summary+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum caso</td></tr>';
+        const alerts=await fetch(base+'/v1/admin/ops/alerts',{headers:hdr()}).then(r=>r.json());
+        document.getElementById('alerts').innerHTML=(alerts.alerts||[]).map(a=>'<tr><td>'+a.severity+'</td><td>'+a.summary+'</td><td>'+(a.metricValue??'—')+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum alerta</td></tr>';
+        const events=await fetch(base+'/v1/admin/events',{headers:hdr()}).then(r=>r.json());
+        document.getElementById('events').innerHTML=(events.events||[]).map(e=>'<tr><td>'+e.eventName+'</td><td>'+e.eventType+'</td><td>'+e.intensityIndex+'</td><td>'+e.endsAt.slice(0,16)+'</td></tr>').join('')||'<tr><td colspan="4">Nenhum evento</td></tr>';
       }catch(e){document.getElementById('kpis').innerHTML='<p class="err">'+e.message+'</p>';}
     }
   </script>

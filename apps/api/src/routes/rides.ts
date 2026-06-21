@@ -53,6 +53,8 @@ import {
   startOnlineSession,
   updateDriverLocation,
 } from '../driver/driverLocationService.js';
+import { logRideDecision } from '../observability/decisionLogService.js';
+import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
 import { publicPromosBlockedForCorporate } from '../corporate/corporateService.js';
 
@@ -270,6 +272,23 @@ ridesRouter.post('/', async (req, res) => {
       rideId: ride.id,
     });
   }
+
+  recordRideMetric({
+    rideId: ride.id,
+    categoryCode: parsed.data.categoryCode,
+    quoted: true,
+    booked: true,
+  });
+  void logRideDecision({
+    rideId: ride.id,
+    decisionType: 'RIDE_CREATED',
+    payload: {
+      categoryCode: parsed.data.categoryCode,
+      estimatedFareCentavos,
+      discountCentavos,
+      paymentMethodId: paymentMethodIdFinal,
+    },
+  });
 
   const passengerRep = await getPassengerReputation(req.user!.id);
   const matched = await startMatching(ride.id, passengerRep);

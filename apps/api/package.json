@@ -24,7 +24,8 @@
     "test:camada9": "tsx scripts/test-camada9.ts",
     "test:camada10": "tsx scripts/test-camada10.ts",
     "test:camada11": "tsx scripts/test-camada11.ts",
-    "test:camada12": "tsx scripts/test-camada12.ts"
+    "test:camada12": "tsx scripts/test-camada12.ts",
+    "test:camada13": "tsx scripts/test-camada13.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

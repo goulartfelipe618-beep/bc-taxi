@@ -19,6 +19,13 @@ export interface PromoCodeRecord {
   categoryCodes?: string[];
   cofundedBps: number;
   isActive: boolean;
+  promoKind?: 'general' | 'acquisition' | 'retention' | 'referral';
+  campaignId?: string;
+  incompatibleGroup?: string;
+  maxPerDevice?: number;
+  maxPerPaymentFingerprint?: number;
+  maxPerRegionDaily?: number;
+  regionId?: string;
 }
 
 export interface CouponValidation {
@@ -42,6 +49,9 @@ const memoryPromos: PromoCodeRecord[] = [
     validFrom: new Date(),
     cofundedBps: 0,
     isActive: true,
+    promoKind: 'general',
+    incompatibleGroup: 'percent_stack',
+    maxPerDevice: 3,
   },
   {
     id: 'promo-primeira15',
@@ -54,6 +64,10 @@ const memoryPromos: PromoCodeRecord[] = [
     validFrom: new Date(),
     cofundedBps: 0,
     isActive: true,
+    promoKind: 'acquisition',
+    incompatibleGroup: 'first_ride',
+    maxPerDevice: 1,
+    maxPerPaymentFingerprint: 1,
   },
 ];
 
@@ -75,6 +89,14 @@ function mapPromoRow(row: Record<string, unknown>): PromoCodeRecord {
     categoryCodes: (row.category_codes as string[]) ?? undefined,
     cofundedBps: Number(row.cofunded_bps),
     isActive: Boolean(row.is_active),
+    promoKind: (row.promo_kind as PromoCodeRecord['promoKind']) ?? 'general',
+    campaignId: (row.campaign_id as string) ?? undefined,
+    incompatibleGroup: (row.incompatible_group as string) ?? undefined,
+    maxPerDevice: row.max_per_device != null ? Number(row.max_per_device) : undefined,
+    maxPerPaymentFingerprint:
+      row.max_per_payment_fingerprint != null ? Number(row.max_per_payment_fingerprint) : undefined,
+    maxPerRegionDaily: row.max_per_region_daily != null ? Number(row.max_per_region_daily) : undefined,
+    regionId: (row.region_id as string) ?? undefined,
   };
 }
 
@@ -152,6 +174,10 @@ export async function validatePromoCode(input: {
   userId: string;
   categoryCode: string;
   fareCentavos: number;
+  deviceId?: string;
+  paymentFingerprint?: string;
+  regionId?: string;
+  stackedPromoCodes?: string[];
 }): Promise<CouponValidation> {
   const promo = await getPromoByCode(input.code);
   if (!promo) {
@@ -186,11 +212,52 @@ export async function validatePromoCode(input: {
     return { valid: false, discountCentavos: 0, fareAfterCentavos: input.fareCentavos, reason: 'Valor mínimo não atingido' };
   }
 
+  const { assessCouponAbuse, recordCouponAbuseEvent } = await import('./couponAbuseService.js');
+  const abuseCheck = await assessCouponAbuse({
+    userId: input.userId,
+    promo,
+    deviceId: input.deviceId,
+    paymentFingerprint: input.paymentFingerprint,
+    regionId: input.regionId,
+    stackedPromoCodes: input.stackedPromoCodes ?? [input.code.toUpperCase()],
+  });
+  if (!abuseCheck.allowed) {
+    if (abuseCheck.abuseDelta) {
+      await recordCouponAbuseEvent({
+        userId: input.userId,
+        promoId: promo.id,
+        deviceId: input.deviceId,
+        paymentFingerprint: input.paymentFingerprint,
+        regionId: input.regionId,
+        eventType: 'VALIDATION_BLOCKED',
+        reasonCode: abuseCheck.reasonCode ?? 'VALIDATION_BLOCKED',
+        abuseDelta: abuseCheck.abuseDelta,
+      });
+    }
+    return {
+      valid: false,
+      discountCentavos: 0,
+      fareAfterCentavos: input.fareCentavos,
+      reason: abuseCheck.reason ?? 'Cupom bloqueado por política antifraude',
+    };
+  }
+
+  const factor = abuseCheck.eligibilityFactor ?? 1;
+  const adjustedDiscount = factor < 1 ? Math.round(discountCentavos * factor) : discountCentavos;
+  if (adjustedDiscount <= 0) {
+    return {
+      valid: false,
+      discountCentavos: 0,
+      fareAfterCentavos: input.fareCentavos,
+      reason: 'Elegibilidade reduzida por score de abuso de cupons',
+    };
+  }
+
   return {
     valid: true,
     promo,
-    discountCentavos,
-    fareAfterCentavos: input.fareCentavos - discountCentavos,
+    discountCentavos: adjustedDiscount,
+    fareAfterCentavos: input.fareCentavos - adjustedDiscount,
   };
 }
 
@@ -201,6 +268,9 @@ export async function recordCouponRedemption(input: {
   discountCentavos: number;
   rideId?: string;
   scheduledRideId?: string;
+  deviceId?: string;
+  paymentFingerprint?: string;
+  regionId?: string;
 }) {
   const fareAfter = input.fareBeforeCentavos - input.discountCentavos;
 
@@ -210,13 +280,23 @@ export async function recordCouponRedemption(input: {
       userId: input.userId,
       discountCentavos: input.discountCentavos,
     });
+    const { trackRedemptionForAbuse } = await import('./couponAbuseService.js');
+    trackRedemptionForAbuse({
+      promoId: input.promo.id,
+      userId: input.userId,
+      deviceId: input.deviceId,
+      fingerprint: input.paymentFingerprint,
+      regionId: input.regionId,
+      incompatibleGroup: input.promo.incompatibleGroup,
+    });
     return { id: randomUUID() };
   }
 
   const { rows } = await pool.query(
     `INSERT INTO coupon_redemption_audit
-      (promo_code_id, user_id, ride_id, scheduled_ride_id, discount_centavos, fare_before_centavos, fare_after_centavos)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      (promo_code_id, user_id, ride_id, scheduled_ride_id, discount_centavos, fare_before_centavos, fare_after_centavos,
+       device_id, payment_fingerprint_hash, region_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [
       input.promo.id,
       input.userId,
@@ -225,6 +305,9 @@ export async function recordCouponRedemption(input: {
       input.discountCentavos,
       input.fareBeforeCentavos,
       fareAfter,
+      input.deviceId ?? null,
+      input.paymentFingerprint ?? null,
+      input.regionId ?? null,
     ],
   );
   return { id: rows[0].id as string };

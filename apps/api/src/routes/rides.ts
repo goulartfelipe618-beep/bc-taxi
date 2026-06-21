@@ -187,10 +187,12 @@ ridesRouter.post('/', async (req, res) => {
 
   const paymentMethodId = parsed.data.paymentMethodId ?? DEMO_PAYMENT_METHOD_IDS.pix;
   const { resolveMethodType, getPaymentMethod } = await import('../payments/paymentStore.js');
+  const paymentMethod = await getPaymentMethod(req.user!.id, paymentMethodId);
   const methodType =
-    (await getPaymentMethod(req.user!.id, paymentMethodId))?.methodType ??
-    resolveMethodType(paymentMethodId) ??
-    'pix';
+    paymentMethod?.methodType ?? resolveMethodType(paymentMethodId) ?? 'pix';
+  const deviceId = req.header('x-device-id') ?? undefined;
+  const { resolvePaymentFingerprint } = await import('../promotions/couponAbuseService.js');
+  const paymentFingerprint = await resolvePaymentFingerprint(req.user!.id, paymentMethodId);
 
   if (methodType === 'cash' && !isCashPaymentAllowed(passengerRepScore)) {
     res.status(403).json({ error: 'Pagamento em dinheiro não permitido para sua reputação atual' });
@@ -281,6 +283,8 @@ ridesRouter.post('/', async (req, res) => {
       userId: req.user!.id,
       categoryCode: parsed.data.categoryCode,
       fareCentavos: estimatedFareCentavos,
+      deviceId,
+      paymentFingerprint,
     });
     if (!coupon.valid) {
       res.status(400).json({ error: coupon.reason ?? 'Cupom inválido' });
@@ -296,7 +300,6 @@ ridesRouter.post('/', async (req, res) => {
   let paymentIntentId: string | undefined;
   let paymentPayload: ReturnType<typeof toPublicPaymentIntent> | undefined;
 
-  const deviceId = req.header('x-device-id') ?? undefined;
   const risk = await evaluateRideRisk({
     userId: req.user!.id,
     deviceId,
@@ -374,6 +377,8 @@ ridesRouter.post('/', async (req, res) => {
       fareBeforeCentavos: fareBeforeCoupon ?? estimatedFareCentavos ?? 0,
       discountCentavos,
       rideId: ride.id,
+      deviceId,
+      paymentFingerprint,
     });
   }
 

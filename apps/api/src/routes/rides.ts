@@ -55,6 +55,9 @@ import {
 } from '../driver/driverLocationService.js';
 import { captureRideGovernanceSnapshot, getRideGovernanceTrail } from '../governance/governanceService.js';
 import { captureRideAirportSnapshot, resolveAirportContext, toPublicContext } from '../airport/airportService.js';
+import { getRouteQuote } from '../route/routeStore.js';
+import { toPublicRouteQuote } from '../route/routeService.js';
+import { pool } from '../db.js';
 import { logRideDecision } from '../observability/decisionLogService.js';
 import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
@@ -86,6 +89,8 @@ const createRideSchema = z.object({
   durationMin: z.number().positive().optional(),
   paymentMethodId: z.string().uuid().optional(),
   couponCode: z.string().optional(),
+  routeRequestId: z.string().uuid().optional(),
+  routeStrategy: z.enum(['fastest', 'shortest', 'economical', 'less_traffic']).optional(),
 });
 
 const verifyCodeSchema = z.object({
@@ -178,9 +183,26 @@ ridesRouter.post('/', async (req, res) => {
   let estimatedFareCentavos: number | undefined;
   let quoteResult: Awaited<ReturnType<typeof quoteWithDynamicPricing>> | undefined;
   let sharedQuoteResult: Awaited<ReturnType<typeof quoteSharedRide>> | undefined;
+  let routeQuotePayload: ReturnType<typeof toPublicRouteQuote> | undefined;
 
   const isSharedRide =
     parsed.data.categoryCode === 'compartilhado' || parsed.data.isShared === true;
+
+  if (parsed.data.routeRequestId) {
+    const routeQuote = await getRouteQuote(parsed.data.routeRequestId);
+    if (!routeQuote) {
+      res.status(400).json({ error: 'Cotação de rota inválida ou expirada' });
+      return;
+    }
+    const strategy = parsed.data.routeStrategy ?? routeQuote.selectedStrategy;
+    const alt = routeQuote.alternatives.find((a) => a.strategy === strategy) ?? routeQuote.recommended;
+    parsed.data.distanceKm = parsed.data.distanceKm ?? alt.distanceM / 1000;
+    parsed.data.durationMin = parsed.data.durationMin ?? alt.etaSeconds / 60;
+    if (alt.estimatedFareCentavos != null) {
+      estimatedFareCentavos = alt.estimatedFareCentavos;
+    }
+    routeQuotePayload = toPublicRouteQuote({ ...routeQuote, selectedStrategy: strategy, recommended: alt });
+  }
 
   if (isSharedRide) {
     if (!parsed.data.distanceKm || !parsed.data.durationMin) {
@@ -208,7 +230,7 @@ ridesRouter.post('/', async (req, res) => {
       res.status(400).json({ error: message });
       return;
     }
-  } else if (parsed.data.distanceKm && parsed.data.durationMin) {
+  } else if (parsed.data.distanceKm && parsed.data.durationMin && estimatedFareCentavos == null) {
     quoteResult = await quoteWithDynamicPricing(
       parsed.data.categoryCode as RideCategoryCode,
       parsed.data.distanceKm,
@@ -402,6 +424,13 @@ ridesRouter.post('/', async (req, res) => {
     });
   }
 
+  if (parsed.data.routeRequestId && !useMemory()) {
+    await pool.query(
+      `UPDATE rides SET route_request_id = $2, route_strategy = $3, updated_at = NOW() WHERE id = $1`,
+      [ride.id, parsed.data.routeRequestId, parsed.data.routeStrategy ?? routeQuotePayload?.selectedStrategy ?? null],
+    );
+  }
+
   const passengerRep = await getPassengerReputation(req.user!.id);
 
   let sharedPoolPayload: ReturnType<typeof toPublicPool> | undefined;
@@ -440,6 +469,7 @@ ridesRouter.post('/', async (req, res) => {
     airportContext: airportCtx.isAirportRide ? airportCtx : undefined,
     sharedPool: sharedPoolPayload,
     sharedQuote: sharedQuoteResult ? toPublicSharedQuote(sharedQuoteResult) : undefined,
+    routeQuote: routeQuotePayload,
   });
 });
 

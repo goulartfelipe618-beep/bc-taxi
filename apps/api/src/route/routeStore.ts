@@ -4,7 +4,12 @@ import { useMemory } from '../stores/memoryMatchStore.js';
 import type { RouteSummary } from '../mapbox/types.js';
 import type { ActiveRouteState, RouteAlternative, RouteQuoteResult, RouteStrategy } from './types.js';
 
-const memoryRequests = new Map<string, RouteQuoteResult & { geometry?: RouteSummary['geometry'] }>();
+import type { RouteFareEstimate } from './routePricingService.js';
+
+const memoryRequests = new Map<
+  string,
+  RouteQuoteResult & { geometry?: RouteSummary['geometry']; fromLat: number; fromLng: number; toLat: number; toLng: number }
+>();
 const memoryActiveRoutes = new Map<string, ActiveRouteState>();
 const memoryRecalcEvents: { rideId: string; reasonCode: string; createdAt: Date }[] = [];
 
@@ -19,6 +24,8 @@ export async function saveRouteQuote(input: {
   recommended: RouteAlternative;
   alternatives: RouteAlternative[];
   geometry?: RouteSummary['geometry'];
+  categoryCode?: string;
+  fareEstimates?: RouteFareEstimate[];
 }): Promise<RouteQuoteResult> {
   const requestId = randomUUID();
   const result: RouteQuoteResult = {
@@ -28,10 +35,19 @@ export async function saveRouteQuote(input: {
     alternatives: input.alternatives,
     distanceKm: Math.round((input.recommended.distanceM / 1000) * 100) / 100,
     durationMin: Math.round((input.recommended.etaSeconds / 60) * 10) / 10,
+    categoryCode: input.categoryCode,
+    fareEstimates: input.fareEstimates,
   };
 
   if (useMemory()) {
-    memoryRequests.set(requestId, { ...result, geometry: input.geometry });
+    memoryRequests.set(requestId, {
+      ...result,
+      geometry: input.geometry,
+      fromLat: input.fromLat,
+      fromLng: input.fromLng,
+      toLat: input.toLat,
+      toLng: input.toLng,
+    });
     return result;
   }
 
@@ -61,12 +77,22 @@ export async function saveRouteQuote(input: {
   );
 
   for (const alt of input.alternatives) {
+    const fare = input.fareEstimates?.find((f) => f.strategy === alt.strategy);
     await pool.query(
       `INSERT INTO route_alternatives
          (request_id, strategy, distance_m, eta_seconds, tolls_total_centavos, traffic_level_index,
-          incident_count, deviation_risk_score, generalized_cost, route_polyline, is_recommended)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-       ON CONFLICT (request_id, strategy) DO NOTHING`,
+          incident_count, deviation_risk_score, generalized_cost, route_polyline, is_recommended,
+          estimated_fare_centavos, traffic_surcharge_centavos)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       ON CONFLICT (request_id, strategy) DO UPDATE SET
+         distance_m = EXCLUDED.distance_m,
+         eta_seconds = EXCLUDED.eta_seconds,
+         tolls_total_centavos = EXCLUDED.tolls_total_centavos,
+         traffic_level_index = EXCLUDED.traffic_level_index,
+         generalized_cost = EXCLUDED.generalized_cost,
+         is_recommended = EXCLUDED.is_recommended,
+         estimated_fare_centavos = EXCLUDED.estimated_fare_centavos,
+         traffic_surcharge_centavos = EXCLUDED.traffic_surcharge_centavos`,
       [
         requestId,
         alt.strategy,
@@ -79,6 +105,8 @@ export async function saveRouteQuote(input: {
         alt.generalizedCost,
         alt.strategy === input.selectedStrategy && input.geometry ? JSON.stringify(input.geometry) : null,
         alt.isRecommended,
+        fare?.passengerFareCentavos ?? null,
+        fare?.trafficSurchargeCentavos ?? 0,
       ],
     );
   }
@@ -204,4 +232,131 @@ export async function recordRecalculation(input: {
 
 export function getMemoryRouteQuote(requestId: string) {
   return memoryRequests.get(requestId);
+}
+
+export async function getRouteQuote(requestId: string): Promise<
+  (RouteQuoteResult & { fromLat: number; fromLng: number; toLat: number; toLng: number }) | null
+> {
+  if (useMemory()) {
+    const m = memoryRequests.get(requestId);
+    if (!m) return null;
+    return m;
+  }
+
+  const { rows } = await pool.query(`SELECT * FROM route_requests WHERE id = $1`, [requestId]);
+  if (!rows[0]) return null;
+  const req = rows[0];
+
+  const { rows: altRows } = await pool.query(
+    `SELECT * FROM route_alternatives WHERE request_id = $1 ORDER BY generalized_cost ASC`,
+    [requestId],
+  );
+
+  const alternatives: RouteAlternative[] = altRows.map((row) => ({
+    strategy: row.strategy as RouteStrategy,
+    distanceM: row.distance_m as number,
+    etaSeconds: row.eta_seconds as number,
+    tollsTotalCentavos: row.tolls_total_centavos as number,
+    trafficLevelIndex: Number(row.traffic_level_index),
+    incidentCount: row.incident_count as number,
+    deviationRiskScore: Number(row.deviation_risk_score),
+    generalizedCost: Number(row.generalized_cost),
+    isRecommended: Boolean(row.is_recommended),
+    estimatedFareCentavos: row.estimated_fare_centavos as number | undefined,
+    trafficSurchargeCentavos: row.traffic_surcharge_centavos as number | undefined,
+  }));
+
+  const selectedStrategy = req.selected_strategy as RouteStrategy;
+  const recommended =
+    alternatives.find((a) => a.isRecommended) ??
+    alternatives.find((a) => a.strategy === selectedStrategy) ??
+    alternatives[0]!;
+
+  return {
+    requestId,
+    selectedStrategy,
+    recommended,
+    alternatives,
+    distanceKm: Math.round((recommended.distanceM / 1000) * 100) / 100,
+    durationMin: Math.round((recommended.etaSeconds / 60) * 10) / 10,
+    fromLat: req.from_lat as number,
+    fromLng: req.from_lng as number,
+    toLat: req.to_lat as number,
+    toLng: req.to_lng as number,
+  };
+}
+
+export async function updateRouteSelection(input: {
+  requestId: string;
+  strategy: RouteStrategy;
+  userId?: string;
+  rideId?: string;
+  categoryCode?: string;
+  previousStrategy?: RouteStrategy;
+  estimatedFareCentavos: number;
+}) {
+  if (useMemory()) {
+    const m = memoryRequests.get(input.requestId);
+    if (m) {
+      m.selectedStrategy = input.strategy;
+      const alt = m.alternatives.find((a) => a.strategy === input.strategy);
+      if (alt) {
+        m.recommended = { ...alt, isRecommended: true };
+        m.distanceKm = Math.round((alt.distanceM / 1000) * 100) / 100;
+        m.durationMin = Math.round((alt.etaSeconds / 60) * 10) / 10;
+      }
+    }
+    return;
+  }
+
+  await pool.query(
+    `UPDATE route_requests SET selected_strategy = $2 WHERE id = $1`,
+    [input.requestId, input.strategy],
+  );
+
+  await pool.query(
+    `UPDATE route_alternatives SET is_recommended = (strategy = $2) WHERE request_id = $1`,
+    [input.requestId, input.strategy],
+  );
+
+  await pool.query(
+    `INSERT INTO route_selection_events
+       (user_id, request_id, ride_id, strategy, category_code, estimated_fare_centavos, previous_strategy)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      input.userId ?? null,
+      input.requestId,
+      input.rideId ?? null,
+      input.strategy,
+      input.categoryCode ?? null,
+      input.estimatedFareCentavos,
+      input.previousStrategy ?? null,
+    ],
+  );
+}
+
+export async function getRecalculationEvents(rideId: string) {
+  if (useMemory()) {
+    return memoryRecalcEvents
+      .filter((e) => e.rideId === rideId)
+      .map((e) => ({
+        rideId: e.rideId,
+        reasonCode: e.reasonCode,
+        createdAt: e.createdAt.toISOString(),
+      }));
+  }
+
+  const { rows } = await pool.query(
+    `SELECT reason_code, eta_delta_seconds, previous_eta_seconds, new_eta_seconds, created_at
+     FROM route_recalculation_events WHERE ride_id = $1 ORDER BY created_at DESC LIMIT 20`,
+    [rideId],
+  );
+
+  return rows.map((row) => ({
+    reasonCode: row.reason_code as string,
+    etaDeltaSeconds: row.eta_delta_seconds as number,
+    previousEtaSeconds: row.previous_eta_seconds as number,
+    newEtaSeconds: row.new_eta_seconds as number,
+    createdAt: new Date(row.created_at as string).toISOString(),
+  }));
 }

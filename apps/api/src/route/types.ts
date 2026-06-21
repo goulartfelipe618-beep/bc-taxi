@@ -18,6 +18,9 @@ export interface RouteAlternative {
   generalizedCost: number;
   geometry?: RouteSummary['geometry'];
   isRecommended: boolean;
+  estimatedFareCentavos?: number;
+  trafficSurchargeCentavos?: number;
+  passengerFareLabel?: string;
 }
 
 export interface RouteQuoteResult {
@@ -27,6 +30,8 @@ export interface RouteQuoteResult {
   alternatives: RouteAlternative[];
   distanceKm: number;
   durationMin: number;
+  categoryCode?: string;
+  fareEstimates?: import('./routePricingService.js').RouteFareEstimate[];
 }
 
 export interface ActiveRouteState {

@@ -9,7 +9,9 @@ import {
   toPublicSavedPlace,
   upsertSavedPlace,
 } from '../places/savedPlaceStore.js';
-import { quoteRoutes, toPublicRouteQuote } from '../route/routeService.js';
+import { quoteRoutes, quoteRoutesWithFares, selectRouteStrategy, toPublicRouteQuote, ROUTE_STRATEGY_META } from '../route/routeService.js';
+import { getRecalculationEvents } from '../route/routeStore.js';
+import type { RideCategoryCode } from '../domain/types.js';
 import { getWeatherAtPoint, getWeatherPublic } from '../weather/weatherService.js';
 import type { MapPlace } from '../mapbox/types.js';
 import type { RouteStrategy } from '../route/types.js';
@@ -170,6 +172,16 @@ const quoteBodySchema = z.object({
   toLng: z.number(),
   waypoints: z.array(z.object({ lat: z.number(), lng: z.number() })).optional(),
   strategy: z.enum(['fastest', 'shortest', 'economical', 'less_traffic']).optional(),
+  categoryCode: z.string().optional(),
+});
+
+routesRouter.get('/strategies', (_req, res) => {
+  res.json({
+    strategies: Object.entries(ROUTE_STRATEGY_META).map(([strategy, meta]) => ({
+      strategy,
+      ...meta,
+    })),
+  });
 });
 
 routesRouter.post('/quote', authMiddleware, async (req, res) => {
@@ -180,20 +192,66 @@ routesRouter.post('/quote', authMiddleware, async (req, res) => {
   }
 
   const weather = await getWeatherAtPoint(parsed.data.fromLat, parsed.data.fromLng);
-  const quote = await quoteRoutes({
-    fromLat: parsed.data.fromLat,
-    fromLng: parsed.data.fromLng,
-    toLat: parsed.data.toLat,
-    toLng: parsed.data.toLng,
-    waypoints: parsed.data.waypoints,
-    userId: req.user!.id,
-    preferredStrategy: parsed.data.strategy as RouteStrategy | undefined,
-  });
+  const quote = parsed.data.categoryCode
+    ? await quoteRoutesWithFares({
+        fromLat: parsed.data.fromLat,
+        fromLng: parsed.data.fromLng,
+        toLat: parsed.data.toLat,
+        toLng: parsed.data.toLng,
+        waypoints: parsed.data.waypoints,
+        userId: req.user!.id,
+        preferredStrategy: parsed.data.strategy as RouteStrategy | undefined,
+        categoryCode: parsed.data.categoryCode as RideCategoryCode,
+      })
+    : await quoteRoutes({
+        fromLat: parsed.data.fromLat,
+        fromLng: parsed.data.fromLng,
+        toLat: parsed.data.toLat,
+        toLng: parsed.data.toLng,
+        waypoints: parsed.data.waypoints,
+        userId: req.user!.id,
+        preferredStrategy: parsed.data.strategy as RouteStrategy | undefined,
+      });
 
   res.json({
     ...toPublicRouteQuote(quote),
     weather: getWeatherPublic(weather),
   });
+});
+
+const selectBodySchema = z.object({
+  requestId: z.string().uuid(),
+  strategy: z.enum(['fastest', 'shortest', 'economical', 'less_traffic']),
+  categoryCode: z.string().optional(),
+  rideId: z.string().uuid().optional(),
+});
+
+routesRouter.post('/select', authMiddleware, async (req, res) => {
+  const parsed = selectBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const updated = await selectRouteStrategy({
+    requestId: parsed.data.requestId,
+    strategy: parsed.data.strategy,
+    userId: req.user!.id,
+    rideId: parsed.data.rideId,
+    categoryCode: parsed.data.categoryCode as RideCategoryCode | undefined,
+  });
+
+  if (!updated) {
+    res.status(404).json({ error: 'Cotação de rota não encontrada' });
+    return;
+  }
+
+  res.json(toPublicRouteQuote(updated));
+});
+
+routesRouter.get('/recalculations/:rideId', authMiddleware, async (req, res) => {
+  const events = await getRecalculationEvents(req.params.rideId);
+  res.json({ events });
 });
 
 routesRouter.get('/weather', async (req, res) => {

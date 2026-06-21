@@ -320,7 +320,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
       case 'OFFERING':
         return 'A procurar motorista para ${widget.destination}';
       case 'DRIVER_ASSIGNED':
-        return tracking?.eta?.target == 'pickup'
+        return _tracking?.eta?.target == 'pickup'
             ? 'Motorista a caminho do local de recolha'
             : '${widget.categoryName} · a caminho do local de recolha';
       case 'DRIVER_ARRIVED':

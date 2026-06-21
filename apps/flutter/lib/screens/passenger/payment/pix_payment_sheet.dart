@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../models/payment_intent.dart';
-import '../../services/api_client.dart';
-import '../../services/payment_service.dart';
-import '../../theme/passenger_theme.dart';
+import '../../../models/payment_intent.dart';
+import '../../../services/api_client.dart';
+import '../../../services/payment_service.dart';
+import '../../../theme/passenger_theme.dart';
 
 class PixPaymentSheet extends StatefulWidget {
   const PixPaymentSheet({

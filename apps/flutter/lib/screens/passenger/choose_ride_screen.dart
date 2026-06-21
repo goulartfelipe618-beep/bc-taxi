@@ -9,8 +9,6 @@ import '../../services/catalog_service.dart';
 import '../../services/ride_service.dart';
 import '../../theme/passenger_theme.dart';
 import '../../widgets/passenger/trip_route_map.dart';
-import '../../models/payment_intent.dart';
-import '../../services/payment_service.dart';
 import 'payment/pix_payment_sheet.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';

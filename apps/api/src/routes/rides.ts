@@ -53,6 +53,7 @@ import {
   startOnlineSession,
   updateDriverLocation,
 } from '../driver/driverLocationService.js';
+import { captureRideGovernanceSnapshot, getRideGovernanceTrail } from '../governance/governanceService.js';
 import { logRideDecision } from '../observability/decisionLogService.js';
 import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
@@ -165,14 +166,15 @@ ridesRouter.post('/', async (req, res) => {
   }
 
   let estimatedFareCentavos: number | undefined;
+  let quoteResult: Awaited<ReturnType<typeof quoteWithDynamicPricing>> | undefined;
   if (parsed.data.distanceKm && parsed.data.durationMin) {
-    const quote = await quoteWithDynamicPricing(
+    quoteResult = await quoteWithDynamicPricing(
       parsed.data.categoryCode as RideCategoryCode,
       parsed.data.distanceKm,
       parsed.data.durationMin,
       { lat: parsed.data.pickupLat, lng: parsed.data.pickupLng },
     );
-    estimatedFareCentavos = quote.passengerFareCentavos;
+    estimatedFareCentavos = quoteResult.passengerFareCentavos;
   }
 
   let discountCentavos = 0;
@@ -290,6 +292,21 @@ ridesRouter.post('/', async (req, res) => {
     },
   });
 
+  if (quoteResult) {
+    await captureRideGovernanceSnapshot({
+      rideId: ride.id,
+      phase: 'quote',
+      pricingRuleVersionId: quoteResult.ruleVersionId,
+      dynamicMultiplier: quoteResult.dynamicMultiplier,
+      quotedFareCentavos: estimatedFareCentavos,
+      snapshotJson: {
+        ruleVersionId: quoteResult.ruleVersionId,
+        regionId: quoteResult.regionId,
+        platformFeeCentavos: quoteResult.platformFeeCentavos,
+      },
+    });
+  }
+
   const passengerRep = await getPassengerReputation(req.user!.id);
   const matched = await startMatching(ride.id, passengerRep);
   const finalRide = matched ?? ride;
@@ -301,6 +318,20 @@ ridesRouter.post('/', async (req, res) => {
     discountCentavos: discountCentavos || undefined,
     promoCode: promoCodeApplied,
   });
+});
+
+ridesRouter.get('/:id/governance', async (req, res) => {
+  const ride = await getRide(req.params.id);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada' });
+    return;
+  }
+  if (ride.passengerId !== req.user!.id && ride.driverId !== req.user!.id) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+  const trail = await getRideGovernanceTrail(req.params.id);
+  res.json(trail);
 });
 
 ridesRouter.get('/:id', async (req, res) => {

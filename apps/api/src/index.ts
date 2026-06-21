@@ -24,6 +24,8 @@ import { deliveriesRouter } from './routes/deliveries.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
 import { startHeartbeatJanitor } from './driver/driverLocationService.js';
 import { eventsRouter } from './routes/events.js';
+import { governanceRouter } from './routes/governance.js';
+import { startScheduleDispatcher } from './scheduling/scheduleService.js';
 import { startOpsMetricsJanitor } from './observability/opsMetricsService.js';
 
 async function main() {
@@ -62,6 +64,7 @@ async function main() {
   app.use('/v1/corporate', corporateRouter);
   app.use('/v1/deliveries', deliveriesRouter);
   app.use('/v1/events', eventsRouter);
+  app.use('/v1/governance', governanceRouter);
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);
   app.use('/v1/routes', routesRouter);

@@ -13,6 +13,7 @@ import {
   validateStartCode,
 } from './codeStore.js';
 import type { CodeRole, VerifyCodeResult, VerificationPublic } from './types.js';
+import { captureRideGovernanceSnapshot } from '../governance/governanceService.js';
 import { emitEvent } from '../realtime/eventBus.js';
 import { issueRideReceipt } from '../receipts/receiptService.js';
 import { recordFraudSignal } from '../fraud/fraudService.js';
@@ -189,6 +190,13 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     completedAt: new Date(),
   });
   if (!completed) throw new Error('Falha ao concluir corrida');
+
+  await captureRideGovernanceSnapshot({
+    rideId,
+    phase: 'settlement',
+    quotedFareCentavos: amount,
+    snapshotJson: { capturedAmountCentavos: amount, driverId },
+  });
 
   await releaseDriver(completed);
 

@@ -33,6 +33,7 @@ import {
   usesSequentialOffer,
 } from './eligibility.js';
 import type { PassengerContext, RideRecord, RideRequestInput, ScoredCandidate } from './types.js';
+import { captureRideGovernanceSnapshot } from '../governance/governanceService.js';
 import { logRideDecision } from '../observability/decisionLogService.js';
 import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { emitEvent } from '../realtime/eventBus.js';
@@ -310,6 +311,12 @@ export async function startMatching(rideId: string, passengerReputation = 4.7) {
         decisionType: 'MATCH_STARTED',
         stage: 'stage_1',
         payload: { categoryCode: ride.categoryCode, passengerReputation },
+      });
+      void captureRideGovernanceSnapshot({
+        rideId,
+        phase: 'match',
+        quotedFareCentavos: ride.estimatedFareCentavos,
+        snapshotJson: { categoryCode: ride.categoryCode, matchStage: ride.matchStage },
       });
       void emitEvent('RIDE_REQUESTED', 'ride', rideId, { categoryCode: ride.categoryCode }, {
         rideId,

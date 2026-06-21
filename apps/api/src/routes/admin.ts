@@ -9,7 +9,11 @@ import {
   logAdminAction,
 } from '../admin/adminService.js';
 import { createEventSurge, listActiveEvents, toPublicEvent } from '../events/eventSurgeService.js';
-import { getRideDecisionLogs, toPublicDecisionLog } from '../observability/decisionLogService.js';
+import {
+  getActiveGovernanceCatalog,
+  getRideGovernanceTrail,
+  publishMatchScoringVersion,
+} from '../governance/governanceService.js';
 import {
   getLatestMetrics,
   listOpenOpsAlerts,
@@ -88,8 +92,30 @@ adminRouter.post('/events', async (req, res) => {
 });
 
 adminRouter.get('/rides/:id/decisions', async (req, res) => {
-  const logs = await getRideDecisionLogs(req.params.id);
-  res.json({ decisions: logs.map(toPublicDecisionLog) });
+  const trail = await getRideGovernanceTrail(req.params.id);
+  res.json({ decisions: trail.decisions, snapshots: trail.snapshots });
+});
+
+adminRouter.get('/governance/catalog', async (_req, res) => {
+  const catalog = await getActiveGovernanceCatalog();
+  res.json({ catalog });
+});
+
+const matchVersionSchema = z.object({
+  versionLabel: z.string().min(2),
+  weights: z.record(z.number()),
+  bonuses: z.record(z.number()).optional(),
+});
+
+adminRouter.post('/governance/match-versions', async (req, res) => {
+  const parsed = matchVersionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const version = await publishMatchScoringVersion(parsed.data);
+  await logAdminAction('publish_match_version', 'match_scoring_versions', version.id);
+  res.status(201).json({ version });
 });
 
 adminRouter.get('/health', (_req, res) => {

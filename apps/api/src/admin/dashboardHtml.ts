@@ -30,6 +30,7 @@ export function renderAdminDashboardHtml(apiBase: string) {
   <section><h3>Fraudes abertas</h3><table><thead><tr><th>Usuário</th><th>Risco</th><th>Resumo</th></tr></thead><tbody id="fraud"></tbody></table></section>
   <section><h3>Alertas operacionais</h3><table><thead><tr><th>Severidade</th><th>Resumo</th><th>Métrica</th></tr></thead><tbody id="alerts"></tbody></table></section>
   <section><h3>Eventos surge ativos</h3><table><thead><tr><th>Nome</th><th>Tipo</th><th>Intensidade</th><th>Até</th></tr></thead><tbody id="events"></tbody></table></section>
+  <section><h3>Versões de regras ativas</h3><div id="governance"></div></section>
   <script>
     const base = ${JSON.stringify(apiBase)};
     function hdr(){const k=document.getElementById('key').value;return {'X-Admin-Key':k};}
@@ -52,6 +53,9 @@ export function renderAdminDashboardHtml(apiBase: string) {
         document.getElementById('alerts').innerHTML=(alerts.alerts||[]).map(a=>'<tr><td>'+a.severity+'</td><td>'+a.summary+'</td><td>'+(a.metricValue??'—')+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum alerta</td></tr>';
         const events=await fetch(base+'/v1/admin/events',{headers:hdr()}).then(r=>r.json());
         document.getElementById('events').innerHTML=(events.events||[]).map(e=>'<tr><td>'+e.eventName+'</td><td>'+e.eventType+'</td><td>'+e.intensityIndex+'</td><td>'+e.endsAt.slice(0,16)+'</td></tr>').join('')||'<tr><td colspan="4">Nenhum evento</td></tr>';
+        const gov=await fetch(base+'/v1/admin/governance/catalog',{headers:hdr()}).then(r=>r.json());
+        const c=gov.catalog||{};
+        document.getElementById('governance').innerHTML='<p><strong>Pricing:</strong> '+(c.pricingRuleSetLabel||'—')+' · <strong>Match:</strong> '+(c.matchScoring?.versionLabel||'—')+' · <strong>Reputação:</strong> '+(c.reputationFormula?.versionLabel||'—')+'</p>';
       }catch(e){document.getElementById('kpis').innerHTML='<p class="err">'+e.message+'</p>';}
     }
   </script>

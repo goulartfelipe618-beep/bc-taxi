@@ -138,6 +138,7 @@ export function scoreCandidates(
   ride: RideRecord,
   passenger: PassengerContext,
   radiusM: number,
+  agingBonus = 0,
 ): ScoredCandidate[] {
   const category = getCategory(ride.categoryCode as RideCategoryCode);
   const etaMaxStage = estimateEtaSeconds(radiusM);
@@ -189,7 +190,7 @@ export function scoreCandidates(
       driverQueueBonusPct: driverBenefits.queuePriorityBonusPct,
     });
 
-    return { driver, score, etaPickupS, distanceM, compatibility, featureVector };
+    return { driver, score: score + agingBonus, etaPickupS, distanceM, compatibility, featureVector };
   });
 
   scored.sort((a, b) => b.score - a.score);

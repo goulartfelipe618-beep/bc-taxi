@@ -42,6 +42,13 @@ import {
   blockPassengerCancelledDriver,
   resolveDriverCancelEscLevel,
 } from './blockService.js';
+import { buildAttemptIdempotencyKey, computeAgingBonus } from './reassignPolicyService.js';
+import {
+  registerAttemptMeta,
+  seedMemoryCandidates,
+  attemptExistsByIdempotency,
+} from './matchEngineRepository.js';
+import { scheduleMatchTimeout } from './timeoutHandlerService.js';
 
 const activeMatchLoops = new Set<string>();
 
@@ -151,6 +158,32 @@ async function persistAttempt(
   };
 }
 
+async function afterAttemptPersisted(input: {
+  attempt: { id: string; stageNumber: number; strategy: 'sequential' | 'parallel'; candidateCount: number };
+  ride: RideRecord;
+  scored: ScoredCandidate[];
+  agingBonus: number;
+  idempotencyKey: string;
+}) {
+  await registerAttemptMeta({
+    attemptId: input.attempt.id,
+    rideId: input.ride.id,
+    stageNumber: input.attempt.stageNumber,
+    strategy: input.attempt.strategy,
+    candidateCount: input.scored.length,
+    agingBonus: input.agingBonus,
+    idempotencyKey: input.idempotencyKey,
+  });
+  seedMemoryCandidates(
+    input.attempt.id,
+    input.scored.map((c, i) => ({
+      driverId: c.driver.userId,
+      rankPosition: i + 1,
+      score: c.score,
+    })),
+  );
+}
+
 async function dispatchOffers(
   ride: RideRecord,
   attemptId: string,
@@ -242,8 +275,14 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
     return getRide(rideId);
   }
 
+  const idempotencyKey = buildAttemptIdempotencyKey(rideId, stageIndex + 1);
+  if (await attemptExistsByIdempotency(idempotencyKey)) {
+    return getRide(rideId);
+  }
+
   const radiusM = stages[stageIndex]!;
   const strategy = usesSequentialOffer(ride.categoryCode) ? 'sequential' : 'parallel';
+  const agingBonus = computeAgingBonus(ride);
 
   if (useMemory()) {
     await memoryMatchStore.updateRideStatus(rideId, 'OFFERING', { matchStage: stageIndex + 1 });
@@ -258,9 +297,25 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
   });
   const passenger = buildPassengerContext(ride, passengerReputation);
   const eligible = await filterEligibleDrivers(allDrivers, ride, passenger, radiusM);
-  const scored = scoreCandidates(eligible, ride, passenger, radiusM);
+  const scored = scoreCandidates(eligible, ride, passenger, radiusM, agingBonus);
 
   const attempt = await persistAttempt(ride, stageIndex + 1, radiusM, strategy, scored);
+  await afterAttemptPersisted({ attempt, ride, scored, agingBonus, idempotencyKey });
+
+  void emitEvent(
+    'RIDE_MATCH_ATTEMPT_CREATED',
+    'ride',
+    rideId,
+    {
+      attemptId: attempt.id,
+      stageNumber: stageIndex + 1,
+      radiusM,
+      candidateCount: scored.length,
+      strategy,
+      agingBonus,
+    },
+    { rideId, userIds: [ride.passengerId] },
+  );
 
   if (scored.length === 0) {
     if (useMemory()) await memoryMatchStore.finishAttempt(attempt.id, 'no_candidates');
@@ -271,31 +326,17 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
 
   if (useMemory()) await memoryMatchStore.finishAttempt(attempt.id, 'offered');
   else await finishAttemptPg(attempt.id, 'offered');
-  const offerList = await dispatchOffers(ride, attempt.id, scored, strategy);
+  await dispatchOffers(ride, attempt.id, scored, strategy);
 
   const timeoutMs = getOfferTimeoutSeconds(ride.categoryCode) * 1000;
-  setTimeout(async () => {
-    const current = await getRide(rideId);
-    if (!current || current.status === 'DRIVER_ASSIGNED') return;
-
-    for (const offer of offerList) {
-      if (useMemory()) {
-        const o = await memoryMatchStore.getOffer(offer.id);
-        if (o?.status === 'pending') await memoryMatchStore.updateOfferStatus(offer.id, 'expired');
-      } else {
-        const o = await getOfferPg(offer.id);
-        if (o?.status === 'pending') {
-          await updateOfferStatusPg(offer.id, 'expired');
-          await insertOfferResponsePg(offer.id, 'timeout');
-        }
-      }
-    }
-
-    const stillOpen = await getRide(rideId);
-    if (stillOpen && stillOpen.status === 'OFFERING') {
-      await runMatchStage(rideId, stageIndex + 1, passengerReputation);
-    }
-  }, timeoutMs);
+  await scheduleMatchTimeout({
+    rideId,
+    attemptId: attempt.id,
+    stageIndex,
+    strategy,
+    passengerReputation,
+    dueAt: new Date(Date.now() + timeoutMs),
+  });
 
   return getRide(rideId);
 }

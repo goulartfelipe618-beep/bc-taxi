@@ -54,6 +54,17 @@ export async function recordFraudSignal(input: {
     { userIds: [input.userId], rideId: input.rideId },
   );
 
+  void import('../observability/traceService.js').then(({ recordTraceSpan, generateTraceId }) =>
+    recordTraceSpan({
+      traceId: generateTraceId(),
+      rideId: input.rideId,
+      spanName: `fraud_${input.signalType.toLowerCase()}`,
+      component: 'fraud',
+      status: cfg.severity === 'high' ? 'degraded' : 'ok',
+      metadata: input.metadata,
+    }),
+  );
+
   const riskScore = await getUserRiskScore(input.userId);
   if (riskScore >= RISK_THRESHOLD) {
     if (input.signalType === 'GPS_JUMP') {

@@ -271,8 +271,11 @@ export function startOpsMetricsJanitor() {
   const intervalMs = 5 * 60_000;
   const tick = () => {
     void (async () => {
+      const { capturePlatformHealthSnapshot } = await import('./platformHealthService.js');
+      const { runFullOpsAlertEvaluation } = await import('./opsAlertService.js');
       const metrics = await aggregateHourlyMetrics();
-      await evaluateOpsAlerts(metrics);
+      const health = await capturePlatformHealthSnapshot();
+      await runFullOpsAlertEvaluation({ metrics, health });
     })();
   };
   tick();

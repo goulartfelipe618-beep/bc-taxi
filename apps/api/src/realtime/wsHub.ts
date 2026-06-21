@@ -68,4 +68,14 @@ export const wsHub = {
   stats() {
     return { connections: clients.size };
   },
+
+  detailedStats() {
+    let passengers = 0;
+    let drivers = 0;
+    for (const state of clients.values()) {
+      if (state.role === 'driver') drivers += 1;
+      else passengers += 1;
+    }
+    return { connections: clients.size, passengers, drivers };
+  },
 };

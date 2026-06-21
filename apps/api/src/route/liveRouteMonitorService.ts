@@ -82,6 +82,15 @@ export async function processLiveRouteOnLocationUpdate(input: {
 
   if (outcome.applied) {
     await emitRouteRecalculatedEvent(rideId, ride.passengerId, ride.driverId!, outcome);
+    void import('../observability/traceService.js').then(({ recordTraceSpan, generateTraceId }) =>
+      recordTraceSpan({
+        traceId: generateTraceId(),
+        rideId,
+        spanName: 'route_recalculated',
+        component: 'route',
+        metadata: { reasonCode: outcome.reasonCode, etaSeconds: outcome.state.etaSeconds },
+      }),
+    );
   }
 
   return {

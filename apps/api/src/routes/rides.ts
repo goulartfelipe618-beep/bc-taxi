@@ -160,6 +160,21 @@ ridesRouter.post('/', async (req, res) => {
     return;
   }
 
+  const { resolveRegionContextAtPoint } = await import('../region/serviceRegionGeoService.js');
+  const regionCtx = await resolveRegionContextAtPoint(parsed.data.pickupLat, parsed.data.pickupLng);
+  if (!regionCtx.inCoverage) {
+    res.status(400).json({ error: 'Origem fora da área de cobertura operacional' });
+    return;
+  }
+  if (!regionCtx.enabledCategoryCodes.includes(parsed.data.categoryCode)) {
+    res.status(400).json({
+      error: 'Categoria indisponível nesta praça',
+      serviceRegionId: regionCtx.serviceRegion?.id,
+      enabledCategories: regionCtx.enabledCategoryCodes,
+    });
+    return;
+  }
+
   const weather = await getWeatherAtPoint(parsed.data.pickupLat, parsed.data.pickupLng);
   if (isCategoryBlockedByWeather(parsed.data.categoryCode, weather.weatherState)) {
     res.status(409).json({
@@ -364,6 +379,7 @@ ridesRouter.post('/', async (req, res) => {
   void captureRideOperationalConfigSnapshot({
     rideId: ride.id,
     categoryCode: ride.categoryCode,
+    regionId: regionCtx.serviceRegion?.id ?? regionCtx.pricingRegionId,
     reputationTier: passengerTier,
   });
 

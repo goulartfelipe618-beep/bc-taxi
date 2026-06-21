@@ -33,6 +33,7 @@ import { collectiveRouter } from './routes/collective.js';
 import { opsRouter } from './routes/ops.js';
 import { aiRouter } from './routes/ai.js';
 import { matchRouter } from './routes/match.js';
+import { regionsRouter } from './routes/regions.js';
 import { startScheduleDispatcher } from './scheduling/scheduleService.js';
 import { startSharedPoolDispatcher } from './shared/sharedRideService.js';
 import { startOpsMetricsJanitor } from './observability/opsMetricsService.js';
@@ -83,6 +84,7 @@ async function main() {
   app.use('/v1/ops', opsRouter);
   app.use('/v1/ai', aiRouter);
   app.use('/v1/match', matchRouter);
+  app.use('/v1/regions', regionsRouter);
   app.use('/v1/accessibility', accessibilityRouter);
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);

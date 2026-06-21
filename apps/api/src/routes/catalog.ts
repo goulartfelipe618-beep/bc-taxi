@@ -15,11 +15,36 @@ import {
   getUserSegmentPolicy,
 } from '../config/operationalParamsService.js';
 import { config } from '../config.js';
+import {
+  listPublicCategoriesForRegion,
+  resolveRegionContextAtPoint,
+} from '../region/serviceRegionGeoService.js';
 
 export const categoriesRouter = Router();
 
-categoriesRouter.get('/', (req, res) => {
+categoriesRouter.get('/', async (req, res) => {
   const passengerOnly = req.query.passengerRidesOnly !== 'false';
+  const lat = req.query.lat != null ? Number(req.query.lat) : undefined;
+  const lng = req.query.lng != null ? Number(req.query.lng) : undefined;
+
+  if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+    const ctx = await resolveRegionContextAtPoint(lat, lng);
+    if (!ctx.inCoverage) {
+      res.json({ inCoverage: false, categories: [] });
+      return;
+    }
+    const categories = listPublicCategoriesForRegion(ctx.enabledCategoryCodes)
+      .filter((c) => !passengerOnly || c.isPassengerRide)
+      .map(getPublicCategory);
+    res.json({
+      inCoverage: true,
+      serviceRegionId: ctx.serviceRegion?.id,
+      pricingRegionId: ctx.pricingRegionId,
+      categories,
+    });
+    return;
+  }
+
   const categories = listCategories({ passengerRidesOnly: passengerOnly }).map(getPublicCategory);
   res.json({ categories });
 });

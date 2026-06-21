@@ -98,7 +98,12 @@ function applyRuleOverrides(base: QuoteResult, rule: PricingRuleVersion, extras:
 }
 
 export async function buildEngineQuote(input: EngineQuoteInput): Promise<EngineQuoteResult> {
-  const regionId = input.regionId ?? config.defaultPricingRegionId;
+  const regionId = input.regionId
+    ?? (input.fromLat != null && input.fromLng != null
+      ? await (
+          await import('../region/serviceRegionGeoService.js')
+        ).resolvePricingRegionIdAtPoint(input.fromLat, input.fromLng)
+      : config.defaultPricingRegionId);
   const rule = await getActivePricingRule(input.categoryCode, regionId);
   const region = ruleToRegion(rule);
 

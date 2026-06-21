@@ -190,7 +190,9 @@ async function dispatchOffers(
   scored: ScoredCandidate[],
   strategy: 'sequential' | 'parallel',
 ) {
-  const timeoutSec = await getOfferTimeoutSeconds(ride.categoryCode);
+  const { resolveServiceRegionIdAtPoint } = await import('../region/serviceRegionGeoService.js');
+  const serviceRegionId = await resolveServiceRegionIdAtPoint(ride.pickupLat, ride.pickupLng);
+  const timeoutSec = await getOfferTimeoutSeconds(ride.categoryCode, serviceRegionId);
   const expiresAt = new Date(Date.now() + timeoutSec * 1000);
 
   if (strategy === 'sequential') {
@@ -272,7 +274,9 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
   const ride = await getRide(rideId);
   if (!ride || !['REQUESTED', 'OFFERING'].includes(ride.status)) return ride;
 
-  const stages = await getRadiusStages(ride.categoryCode);
+  const { resolveServiceRegionIdAtPoint } = await import('../region/serviceRegionGeoService.js');
+  const serviceRegionId = await resolveServiceRegionIdAtPoint(ride.pickupLat, ride.pickupLng);
+  const stages = await getRadiusStages(ride.categoryCode, serviceRegionId);
   if (stageIndex >= stages.length) {
     if (useMemory()) await memoryMatchStore.updateRideStatus(rideId, 'NO_DRIVERS');
     else await updateRideStatusPg(rideId, 'NO_DRIVERS');
@@ -338,7 +342,7 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
   else await finishAttemptPg(attempt.id, 'offered');
   await dispatchOffers(ride, attempt.id, scored, strategy);
 
-  const timeoutMs = (await getOfferTimeoutSeconds(ride.categoryCode)) * 1000;
+  const timeoutMs = (await getOfferTimeoutSeconds(ride.categoryCode, serviceRegionId)) * 1000;
   await scheduleMatchTimeout({
     rideId,
     attemptId: attempt.id,

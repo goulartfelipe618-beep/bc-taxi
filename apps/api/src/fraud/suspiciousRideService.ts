@@ -128,6 +128,22 @@ async function saveFlag(input: Omit<SuspiciousRideFlag, 'id' | 'createdAt' | 'st
     });
   }
 
+  if (input.severity === 'critical' || input.riskScore >= 0.85) {
+    void import('../ai/inferenceJobService.js').then(({ scheduleAiInferenceJob }) =>
+      scheduleAiInferenceJob({
+        useCase: 'fraud_case_summary',
+        sourceRef: input.rideId ?? flag.id,
+        features: {
+          flagType: input.flagType,
+          riskScore: input.riskScore,
+          summary: input.summary,
+          passengerId: input.passengerId,
+          driverId: input.driverId,
+        },
+      }),
+    );
+  }
+
   return flag;
 }
 

@@ -75,6 +75,7 @@ quotesRouter.post('/', async (req, res) => {
     ...quote,
     passengerFareLabel: formatFare(quote.passengerFareCentavos),
     driverPayoutLabel: formatFare(quote.estimatedDriverPayoutCentavos),
+    airportContext: quote.airportContext,
   });
 });
 

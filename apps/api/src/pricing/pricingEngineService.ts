@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { getDynamicMultiplier } from './dynamicPricingService.js';
 import { getActivePricingRule, type PricingRuleVersion } from './pricingRuleStore.js';
 import { estimateTollsCentavos } from './tollService.js';
+import { resolveAirportContext, toPublicContext } from '../airport/airportService.js';
 
 export interface EngineQuoteInput {
   categoryCode: RideCategoryCode;
@@ -30,6 +31,7 @@ export interface EngineQuoteResult extends QuoteResult {
   trafficSurchargeCentavos: number;
   platformFeeCentavos: number;
   tollNames: string[];
+  airportContext?: ReturnType<typeof toPublicContext>;
 }
 
 function ruleToRegion(rule: PricingRuleVersion): PricingRegionDefaults {
@@ -100,6 +102,17 @@ export async function buildEngineQuote(input: EngineQuoteInput): Promise<EngineQ
   const rule = await getActivePricingRule(input.categoryCode, regionId);
   const region = ruleToRegion(rule);
 
+  const airportContext = await resolveAirportContext({
+    fromLat: input.fromLat,
+    fromLng: input.fromLng,
+    toLat: input.toLat,
+    toLng: input.toLng,
+    categoryCode: input.categoryCode,
+    airportFeeOverrideCentavos: input.airportFeeCentavos,
+  });
+  const airportFeeCentavos =
+    input.airportFeeCentavos ?? airportContext.airportFeeCentavos;
+
   let tollsCentavos = input.tollsCentavos;
   let tollNames: string[] = [];
   if (tollsCentavos == null && input.fromLat != null && input.fromLng != null && input.toLat != null && input.toLng != null) {
@@ -133,17 +146,21 @@ export async function buildEngineQuote(input: EngineQuoteInput): Promise<EngineQ
     durationMin: input.durationMin,
     dynamicMultiplier: clampDynamic(dynamicMultiplier, category.dynamicCap),
     tollsCentavos: tollsCentavos ?? 0,
-    airportFeeCentavos: input.airportFeeCentavos ?? 0,
+    airportFeeCentavos,
     addonsCentavos: (input.addonsCentavos ?? 0) + trafficSurchargeCentavos,
   };
 
   const base = computeQuote(req, region);
-  return applyRuleOverrides(base, rule, {
+  const result = applyRuleOverrides(base, rule, {
     trafficSurchargeCentavos,
     regulatoryFeeCentavos: rule.regulatoryFeeCentavos,
     discountsCentavos: input.discountsCentavos ?? 0,
     tollNames,
   });
+  return {
+    ...result,
+    airportContext: toPublicContext(airportContext),
+  };
 }
 
 export async function quoteWithEngine(

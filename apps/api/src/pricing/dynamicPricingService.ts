@@ -9,6 +9,7 @@ import { pool } from '../db.js';
 import { useMemory, memoryMatchStore } from '../stores/memoryMatchStore.js';
 import { getRegionalWeatherPressure } from '../weather/weatherService.js';
 import { computeEventPressure } from '../events/eventSurgeService.js';
+import { computeAirportPressure } from '../airport/airportService.js';
 
 export interface DynamicPricingFactors {
   demandPressure: number;
@@ -78,12 +79,13 @@ export async function computeLiveFactors(lat?: number, lng?: number): Promise<Dy
   }
 
   const eventPressure = await computeEventPressure(lat, lng, undefined);
+  const airportPressure = await computeAirportPressure(lat, lng, undefined);
 
   return {
     demandPressure,
     weatherPressure,
     eventPressure,
-    airportPressure: 0,
+    airportPressure,
     trafficPressure: Math.min(0.25, supplyShortage * 0.3),
     supplyShortage,
     timePressure: hourPressure(),

@@ -54,6 +54,7 @@ import {
   updateDriverLocation,
 } from '../driver/driverLocationService.js';
 import { captureRideGovernanceSnapshot, getRideGovernanceTrail } from '../governance/governanceService.js';
+import { captureRideAirportSnapshot, resolveAirportContext, toPublicContext } from '../airport/airportService.js';
 import { logRideDecision } from '../observability/decisionLogService.js';
 import { recordRideMetric } from '../observability/opsMetricsService.js';
 import { validatePromoCode, recordCouponRedemption } from '../promotions/couponService.js';
@@ -172,7 +173,12 @@ ridesRouter.post('/', async (req, res) => {
       parsed.data.categoryCode as RideCategoryCode,
       parsed.data.distanceKm,
       parsed.data.durationMin,
-      { lat: parsed.data.pickupLat, lng: parsed.data.pickupLng },
+      {
+        lat: parsed.data.pickupLat,
+        lng: parsed.data.pickupLng,
+        toLat: parsed.data.dropoffLat,
+        toLng: parsed.data.dropoffLng,
+      },
     );
     estimatedFareCentavos = quoteResult.passengerFareCentavos;
   }
@@ -307,6 +313,55 @@ ridesRouter.post('/', async (req, res) => {
     });
   }
 
+  const airportCtx =
+    quoteResult?.airportContext ??
+    toPublicContext(
+      await resolveAirportContext({
+        fromLat: parsed.data.pickupLat,
+        fromLng: parsed.data.pickupLng,
+        toLat: parsed.data.dropoffLat,
+        toLng: parsed.data.dropoffLng,
+        categoryCode: parsed.data.categoryCode,
+      }),
+    );
+  if (airportCtx.isAirportRide) {
+    await captureRideAirportSnapshot({
+      rideId: ride.id,
+      context: {
+        isAirportRide: airportCtx.isAirportRide,
+        airportFeeCentavos: airportCtx.airportFeeCentavos,
+        pricingMode: airportCtx.pricingMode as 'standard' | 'airport_category',
+        airportPressure: airportCtx.airportPressure,
+        feeLabel: airportCtx.feeLabel,
+        pickupInstructions: airportCtx.pickupInstructions,
+        pickupZone: airportCtx.pickupZone
+          ? {
+              id: airportCtx.pickupZone.id,
+              name: airportCtx.pickupZone.name,
+              iataCode: airportCtx.pickupZone.iataCode,
+              centerLat: airportCtx.pickupZone.centerLat,
+              centerLng: airportCtx.pickupZone.centerLng,
+              radiusKm: airportCtx.pickupZone.radiusKm,
+              pickupInstructions: airportCtx.pickupZone.pickupInstructions,
+              isActive: true,
+            }
+          : undefined,
+        dropoffZone: airportCtx.dropoffZone
+          ? {
+              id: airportCtx.dropoffZone.id,
+              name: airportCtx.dropoffZone.name,
+              iataCode: airportCtx.dropoffZone.iataCode,
+              centerLat: airportCtx.dropoffZone.centerLat,
+              centerLng: airportCtx.dropoffZone.centerLng,
+              radiusKm: airportCtx.dropoffZone.radiusKm,
+              pickupInstructions: airportCtx.dropoffZone.pickupInstructions,
+              isActive: true,
+            }
+          : undefined,
+      },
+    });
+  }
+
   const passengerRep = await getPassengerReputation(req.user!.id);
   const matched = await startMatching(ride.id, passengerRep);
   const finalRide = matched ?? ride;
@@ -317,6 +372,7 @@ ridesRouter.post('/', async (req, res) => {
     risk,
     discountCentavos: discountCentavos || undefined,
     promoCode: promoCodeApplied,
+    airportContext: airportCtx.isAirportRide ? airportCtx : undefined,
   });
 });
 

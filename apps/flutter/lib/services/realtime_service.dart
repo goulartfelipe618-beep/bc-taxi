@@ -74,3 +74,13 @@ String? eventRideId(Map<String, dynamic> event) {
 }
 
 String? eventType(Map<String, dynamic> event) => event['eventType'] as String?;
+
+bool isRouteRecalculatedEvent(Map<String, dynamic> event) =>
+    eventType(event) == 'ROUTE_RECALCULATED';
+
+Map<String, dynamic>? routeRecalcPayload(Map<String, dynamic> event) {
+  if (!isRouteRecalculatedEvent(event)) return null;
+  final payload = event['payload'];
+  if (payload is Map<String, dynamic>) return payload;
+  return null;
+}

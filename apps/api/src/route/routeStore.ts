@@ -123,6 +123,10 @@ export async function activateRouteForRide(input: {
   tollsTotalCentavos: number;
   trafficLevelIndex: number;
   geometry?: RouteSummary['geometry'];
+  driverLat?: number;
+  driverLng?: number;
+  deviationM?: number;
+  incidentRiskScore?: number;
 }): Promise<ActiveRouteState> {
   const id = randomUUID();
   const state: ActiveRouteState = {
@@ -136,6 +140,11 @@ export async function activateRouteForRide(input: {
     trafficLevelIndex: input.trafficLevelIndex,
     routePolyline: input.geometry,
     lastRecalculatedAt: new Date(),
+    driverLat: input.driverLat,
+    driverLng: input.driverLng,
+    deviationM: input.deviationM ?? 0,
+    incidentRiskScore: input.incidentRiskScore ?? 0,
+    liveMonitorEnabled: true,
   };
 
   if (useMemory()) {
@@ -146,8 +155,8 @@ export async function activateRouteForRide(input: {
   await pool.query(
     `INSERT INTO active_route_states
        (id, ride_id, request_id, strategy, distance_m, eta_seconds, tolls_total_centavos,
-        traffic_level_index, route_polyline)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        traffic_level_index, route_polyline, driver_lat, driver_lng, deviation_m, incident_risk_score)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
      ON CONFLICT (ride_id) DO UPDATE SET
        request_id = EXCLUDED.request_id,
        strategy = EXCLUDED.strategy,
@@ -156,6 +165,10 @@ export async function activateRouteForRide(input: {
        tolls_total_centavos = EXCLUDED.tolls_total_centavos,
        traffic_level_index = EXCLUDED.traffic_level_index,
        route_polyline = EXCLUDED.route_polyline,
+       driver_lat = EXCLUDED.driver_lat,
+       driver_lng = EXCLUDED.driver_lng,
+       deviation_m = EXCLUDED.deviation_m,
+       incident_risk_score = EXCLUDED.incident_risk_score,
        last_recalculated_at = NOW(),
        updated_at = NOW()`,
     [
@@ -168,6 +181,10 @@ export async function activateRouteForRide(input: {
       input.tollsTotalCentavos,
       input.trafficLevelIndex,
       input.geometry ? JSON.stringify(input.geometry) : null,
+      input.driverLat ?? null,
+      input.driverLng ?? null,
+      input.deviationM ?? 0,
+      input.incidentRiskScore ?? 0,
     ],
   );
 
@@ -181,7 +198,8 @@ export async function getActiveRoute(rideId: string): Promise<ActiveRouteState |
 
   const { rows } = await pool.query(
     `SELECT id, ride_id, request_id, strategy, distance_m, eta_seconds, tolls_total_centavos,
-            traffic_level_index, route_polyline, last_recalculated_at
+            traffic_level_index, route_polyline, last_recalculated_at, driver_lat, driver_lng,
+            deviation_m, incident_risk_score, live_monitor_enabled
      FROM active_route_states WHERE ride_id = $1`,
     [rideId],
   );
@@ -198,15 +216,77 @@ export async function getActiveRoute(rideId: string): Promise<ActiveRouteState |
     trafficLevelIndex: Number(row.traffic_level_index),
     routePolyline: row.route_polyline as ActiveRouteState['routePolyline'],
     lastRecalculatedAt: new Date(row.last_recalculated_at as string),
+    driverLat: row.driver_lat != null ? Number(row.driver_lat) : undefined,
+    driverLng: row.driver_lng != null ? Number(row.driver_lng) : undefined,
+    deviationM: row.deviation_m != null ? Number(row.deviation_m) : undefined,
+    incidentRiskScore: row.incident_risk_score != null ? Number(row.incident_risk_score) : undefined,
+    liveMonitorEnabled: row.live_monitor_enabled == null ? true : Boolean(row.live_monitor_enabled),
   };
+}
+
+export async function updateActiveRouteDriverPosition(input: {
+  rideId: string;
+  driverLat: number;
+  driverLng: number;
+  deviationM: number;
+}) {
+  if (useMemory()) {
+    const state = memoryActiveRoutes.get(input.rideId);
+    if (state) {
+      memoryActiveRoutes.set(input.rideId, {
+        ...state,
+        driverLat: input.driverLat,
+        driverLng: input.driverLng,
+        deviationM: input.deviationM,
+      });
+    }
+    return;
+  }
+
+  await pool.query(
+    `UPDATE active_route_states
+     SET driver_lat = $2, driver_lng = $3, deviation_m = $4, updated_at = NOW()
+     WHERE ride_id = $1`,
+    [input.rideId, input.driverLat, input.driverLng, input.deviationM],
+  );
+}
+
+export async function recordLiveSnapshot(input: {
+  rideId: string;
+  activeRouteId?: string;
+  driverLat: number;
+  driverLng: number;
+  deviationM: number;
+  trafficLevelIndex?: number;
+  etaSeconds?: number;
+}) {
+  if (useMemory()) return;
+
+  await pool.query(
+    `INSERT INTO route_live_snapshots
+       (ride_id, active_route_id, driver_lat, driver_lng, deviation_m, traffic_level_index, eta_seconds)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      input.rideId,
+      input.activeRouteId ?? null,
+      input.driverLat,
+      input.driverLng,
+      input.deviationM,
+      input.trafficLevelIndex ?? null,
+      input.etaSeconds ?? null,
+    ],
+  );
 }
 
 export async function recordRecalculation(input: {
   rideId: string;
   activeRouteId?: string;
   reasonCode: string;
+  reasonLabel?: string;
   previousEtaSeconds: number;
   newEtaSeconds: number;
+  deviationM?: number;
+  riskDeltaPct?: number;
   metadata?: Record<string, unknown>;
 }) {
   if (useMemory()) {
@@ -216,15 +296,19 @@ export async function recordRecalculation(input: {
 
   await pool.query(
     `INSERT INTO route_recalculation_events
-       (ride_id, active_route_id, reason_code, eta_delta_seconds, previous_eta_seconds, new_eta_seconds, metadata_json)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       (ride_id, active_route_id, reason_code, reason_label, eta_delta_seconds, previous_eta_seconds,
+        new_eta_seconds, deviation_m, risk_delta_pct, metadata_json)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [
       input.rideId,
       input.activeRouteId ?? null,
       input.reasonCode,
+      input.reasonLabel ?? null,
       input.newEtaSeconds - input.previousEtaSeconds,
       input.previousEtaSeconds,
       input.newEtaSeconds,
+      input.deviationM ?? null,
+      input.riskDeltaPct ?? null,
       input.metadata ? JSON.stringify(input.metadata) : null,
     ],
   );

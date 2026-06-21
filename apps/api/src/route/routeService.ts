@@ -20,8 +20,11 @@ import {
   type ActiveRouteState,
   type RouteAlternative,
   type RouteQuoteResult,
+  type RouteRecalcReasonCode,
+  type RouteRecalculateOutcome,
   type RouteStrategy,
 } from './types.js';
+import { computeIncidentRiskScore, ROUTE_RECALC_REASON_LABELS, shouldReplaceRoute } from './routeRecalcPolicy.js';
 
 export const ROUTE_STRATEGY_META: Record<
   RouteStrategy,
@@ -269,22 +272,77 @@ export async function recalculateActiveRoute(input: {
   fromLng: number;
   toLat: number;
   toLng: number;
-  reasonCode: string;
-}): Promise<ActiveRouteState | null> {
+  reasonCode: RouteRecalcReasonCode;
+  dryRun?: boolean;
+  deviationM?: number;
+}): Promise<RouteRecalculateOutcome> {
   const current = await getActiveRoute(input.rideId);
-  if (!current) return null;
+  if (!current) {
+    return {
+      state: {
+        id: '',
+        rideId: input.rideId,
+        strategy: 'fastest',
+        distanceM: 0,
+        etaSeconds: 0,
+        tollsTotalCentavos: 0,
+        trafficLevelIndex: 0,
+        lastRecalculatedAt: new Date(),
+      },
+      applied: false,
+      skippedReason: 'NO_ROUTE',
+    };
+  }
 
-  if (Date.now() - current.lastRecalculatedAt.getTime() < RECALC_MIN_INTERVAL_MS) {
-    return current;
+  if (
+    !input.dryRun &&
+    input.reasonCode !== 'MANUAL' &&
+    Date.now() - current.lastRecalculatedAt.getTime() < RECALC_MIN_INTERVAL_MS
+  ) {
+    return { state: current, applied: false, skippedReason: 'THROTTLED' };
   }
 
   const mapboxRoute = await getDrivingRoute(input.fromLat, input.fromLng, input.toLat, input.toLng);
   const base = routeToBase(mapboxRoute);
   const variant = deriveStrategyVariant(base, current.strategy);
+  const currentRisk = current.incidentRiskScore ?? computeIncidentRiskScore(current.trafficLevelIndex, 0);
+  const candidateRisk = computeIncidentRiskScore(variant.trafficLevelIndex, variant.incidentCount);
   const etaDelta = Math.abs(variant.etaSeconds - current.etaSeconds);
+  const riskDeltaPct = currentRisk > 0 ? (currentRisk - candidateRisk) / currentRisk : 0;
 
-  if (etaDelta < RECALC_ETA_DELTA_SECONDS) {
-    return current;
+  const replace = shouldReplaceRoute({
+    currentEtaSeconds: current.etaSeconds,
+    candidateEtaSeconds: variant.etaSeconds,
+    currentRiskScore: currentRisk,
+    candidateRiskScore: candidateRisk,
+    reasonCode: input.reasonCode,
+  });
+
+  if (!replace) {
+    return {
+      state: current,
+      applied: false,
+      skippedReason: 'INSUFFICIENT_DELTA',
+      reasonCode: input.reasonCode,
+      etaDeltaSeconds: etaDelta,
+      riskDeltaPct,
+      deviationM: input.deviationM,
+      candidateEtaSeconds: variant.etaSeconds,
+      candidateTrafficIndex: variant.trafficLevelIndex,
+    };
+  }
+
+  if (input.dryRun) {
+    return {
+      state: current,
+      applied: false,
+      reasonCode: input.reasonCode,
+      etaDeltaSeconds: etaDelta,
+      riskDeltaPct,
+      deviationM: input.deviationM,
+      candidateEtaSeconds: variant.etaSeconds,
+      candidateTrafficIndex: variant.trafficLevelIndex,
+    };
   }
 
   const updated = await activateRouteForRide({
@@ -296,18 +354,33 @@ export async function recalculateActiveRoute(input: {
     tollsTotalCentavos: variant.tollsTotalCentavos,
     trafficLevelIndex: variant.trafficLevelIndex,
     geometry: mapboxRoute.geometry,
+    driverLat: input.fromLat,
+    driverLng: input.fromLng,
+    deviationM: input.deviationM ?? current.deviationM,
+    incidentRiskScore: candidateRisk,
   });
 
   await recordRecalculation({
     rideId: input.rideId,
     activeRouteId: updated.id,
     reasonCode: input.reasonCode,
+    reasonLabel: ROUTE_RECALC_REASON_LABELS[input.reasonCode],
     previousEtaSeconds: current.etaSeconds,
     newEtaSeconds: updated.etaSeconds,
+    deviationM: input.deviationM,
+    riskDeltaPct,
     metadata: { etaDeltaSeconds: etaDelta },
   });
 
-  return updated;
+  return {
+    state: updated,
+    applied: true,
+    reasonCode: input.reasonCode,
+    reasonLabel: ROUTE_RECALC_REASON_LABELS[input.reasonCode],
+    etaDeltaSeconds: etaDelta,
+    riskDeltaPct,
+    deviationM: input.deviationM,
+  };
 }
 
 export function toPublicRouteQuote(quote: RouteQuoteResult) {
@@ -362,5 +435,10 @@ export function toPublicActiveRoute(state: ActiveRouteState) {
     trafficLevelIndex: state.trafficLevelIndex,
     routePolyline: state.routePolyline,
     lastRecalculatedAt: state.lastRecalculatedAt.toISOString(),
+    driverLat: state.driverLat,
+    driverLng: state.driverLng,
+    deviationM: state.deviationM,
+    incidentRiskScore: state.incidentRiskScore,
+    liveMonitorEnabled: state.liveMonitorEnabled ?? true,
   };
 }

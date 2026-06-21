@@ -45,9 +45,39 @@ export interface ActiveRouteState {
   trafficLevelIndex: number;
   routePolyline?: RouteSummary['geometry'];
   lastRecalculatedAt: Date;
+  driverLat?: number;
+  driverLng?: number;
+  deviationM?: number;
+  incidentRiskScore?: number;
+  liveMonitorEnabled?: boolean;
 }
 
 export const ROUTE_STRATEGIES: RouteStrategy[] = ['fastest', 'shortest', 'economical', 'less_traffic'];
 
 export const RECALC_MIN_INTERVAL_MS = 45_000;
 export const RECALC_ETA_DELTA_SECONDS = 120;
+export const RECALC_DEVIATION_THRESHOLD_M = 250;
+export const RECALC_ETA_IMPROVEMENT_PCT = 0.06;
+export const RECALC_RISK_IMPROVEMENT_PCT = 0.15;
+export const RECALC_TRAFFIC_THRESHOLD = 0.72;
+
+export type RouteRecalcReasonCode =
+  | 'TRAFFIC_UPDATE'
+  | 'DRIVER_DEVIATION'
+  | 'ETA_DRIFT'
+  | 'ROAD_INCIDENT'
+  | 'ROAD_CLOSURE'
+  | 'MANUAL';
+
+export interface RouteRecalculateOutcome {
+  state: ActiveRouteState;
+  applied: boolean;
+  skippedReason?: 'THROTTLED' | 'INSUFFICIENT_DELTA' | 'NO_ROUTE';
+  reasonCode?: RouteRecalcReasonCode;
+  reasonLabel?: string;
+  etaDeltaSeconds?: number;
+  riskDeltaPct?: number;
+  deviationM?: number;
+  candidateEtaSeconds?: number;
+  candidateTrafficIndex?: number;
+}

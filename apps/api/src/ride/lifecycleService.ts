@@ -19,6 +19,7 @@ import { emitEvent } from '../realtime/eventBus.js';
 import { issueRideReceipt } from '../receipts/receiptService.js';
 import { recordFraudSignal } from '../fraud/fraudService.js';
 import { bindRouteToRide, getActiveRoute, recalculateActiveRoute, toPublicActiveRoute } from '../route/routeService.js';
+import { emitRouteRecalculatedEvent } from '../route/liveRouteMonitorService.js';
 
 async function updateLifecycle(
   rideId: string,
@@ -236,7 +237,7 @@ export async function recalculateRideRoute(
   driverId: string,
   driverLat: number,
   driverLng: number,
-  reasonCode = 'TRAFFIC_UPDATE',
+  reasonCode: import('../route/types.js').RouteRecalcReasonCode = 'MANUAL',
 ) {
   const ride = await getRide(rideId);
   if (!ride || ride.driverId !== driverId) {
@@ -246,7 +247,7 @@ export async function recalculateRideRoute(
     throw new Error('Recálculo permitido apenas com corrida em andamento');
   }
 
-  const updated = await recalculateActiveRoute({
+  const outcome = await recalculateActiveRoute({
     rideId,
     fromLat: driverLat,
     fromLng: driverLng,
@@ -255,17 +256,11 @@ export async function recalculateRideRoute(
     reasonCode,
   });
 
-  if (updated) {
-    void emitEvent(
-      'ROUTE_RECALCULATED',
-      'ride',
-      rideId,
-      { reasonCode, etaSeconds: updated.etaSeconds },
-      { rideId, userIds: [ride.passengerId], driverId },
-    );
+  if (outcome.applied) {
+    await emitRouteRecalculatedEvent(rideId, ride.passengerId, driverId, outcome);
   }
 
-  return updated;
+  return outcome.state;
 }
 
 export { toPublicActiveRoute };

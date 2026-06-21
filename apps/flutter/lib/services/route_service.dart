@@ -90,6 +90,41 @@ class RouteQuoteResult {
   }
 }
 
+class ActiveRouteState {
+  const ActiveRouteState({
+    required this.rideId,
+    required this.strategy,
+    required this.etaSeconds,
+    required this.distanceM,
+    this.trafficLevelIndex = 0,
+    this.deviationM,
+    this.routePolyline,
+    this.lastRecalculatedAt,
+  });
+
+  final String rideId;
+  final String strategy;
+  final int etaSeconds;
+  final int distanceM;
+  final double trafficLevelIndex;
+  final double? deviationM;
+  final Map<String, dynamic>? routePolyline;
+  final String? lastRecalculatedAt;
+
+  factory ActiveRouteState.fromJson(Map<String, dynamic> json) {
+    return ActiveRouteState(
+      rideId: json['rideId'] as String,
+      strategy: json['strategy'] as String,
+      etaSeconds: (json['etaSeconds'] as num).toInt(),
+      distanceM: (json['distanceM'] as num).toInt(),
+      trafficLevelIndex: (json['trafficLevelIndex'] as num?)?.toDouble() ?? 0,
+      deviationM: (json['deviationM'] as num?)?.toDouble(),
+      routePolyline: json['routePolyline'] as Map<String, dynamic>?,
+      lastRecalculatedAt: json['lastRecalculatedAt'] as String?,
+    );
+  }
+}
+
 class RouteService {
   static Future<List<RouteStrategyOption>> fetchStrategies() async {
     final res = await http.get(Uri.parse('$apiBaseUrl/v1/routes/strategies')).timeout(const Duration(seconds: 5));
@@ -155,5 +190,41 @@ class RouteService {
         .timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) return null;
     return RouteQuoteResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  static Future<ActiveRouteState?> fetchActiveRoute({
+    required String token,
+    required String rideId,
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl/v1/rides/$rideId/route');
+    final res = await http
+        .get(uri, headers: {'Authorization': 'Bearer $token'})
+        .timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) return null;
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return ActiveRouteState.fromJson(body['route'] as Map<String, dynamic>);
+  }
+
+  static Future<ActiveRouteState?> recalculateActiveRoute({
+    required String token,
+    required String rideId,
+    required double lat,
+    required double lng,
+    String reasonCode = 'MANUAL',
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl/v1/rides/$rideId/route/recalculate');
+    final res = await http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'lat': lat, 'lng': lng, 'reasonCode': reasonCode}),
+        )
+        .timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return ActiveRouteState.fromJson(body['route'] as Map<String, dynamic>);
   }
 }

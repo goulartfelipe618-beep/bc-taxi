@@ -162,6 +162,17 @@ export async function updateDriverLocation(input: {
 
   const rideId = input.rideId ?? (await resolveDriverActiveRideId(input.driverId));
 
+  if (rideId) {
+    void import('../route/liveRouteMonitorService.js').then(({ processLiveRouteOnLocationUpdate }) =>
+      processLiveRouteOnLocationUpdate({
+        driverId: input.driverId,
+        lat: input.lat,
+        lng: input.lng,
+        rideId,
+      }),
+    );
+  }
+
   await emitEvent(
     'DRIVER_LOCATION_UPDATED',
     'driver',

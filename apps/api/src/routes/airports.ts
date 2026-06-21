@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { authMiddleware } from '../middleware/auth.js';
 import {
   computeAirportPressure,
   detectZoneAt,
@@ -10,6 +11,12 @@ import {
   toPublicZone,
   upsertAirportZone,
 } from '../airport/airportService.js';
+import {
+  getDriverQueueStatus,
+  listAirportQueuePools,
+  listWaitingQueueEntries,
+  syncAirportQueueFromLocation,
+} from '../airport/airportQueueService.js';
 import { config } from '../config.js';
 
 export const airportsRouter = Router();
@@ -104,4 +111,64 @@ airportsRouter.post('/zones', async (req, res) => {
   }
   const zone = await upsertAirportZone(parsed.data);
   res.status(201).json({ zone: toPublicZone(zone) });
+});
+
+airportsRouter.get('/queue/pools', async (_req, res) => {
+  const pools = await listAirportQueuePools();
+  res.json({
+    pools: pools.map((p) => ({
+      id: p.id,
+      zoneId: p.zoneId,
+      name: p.name,
+      terminalCode: p.terminalCode,
+      centerLat: p.centerLat,
+      centerLng: p.centerLng,
+      radiusM: p.radiusM,
+      allowedCategories: p.allowedCategories,
+    })),
+  });
+});
+
+airportsRouter.get('/queue/me', authMiddleware, async (req, res) => {
+  const status = await getDriverQueueStatus(req.user!.id);
+  res.json(status);
+});
+
+airportsRouter.post('/queue/sync', authMiddleware, async (req, res) => {
+  const parsed = z
+    .object({ lat: z.number(), lng: z.number() })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const result = await syncAirportQueueFromLocation(
+    req.user!.id,
+    parsed.data.lat,
+    parsed.data.lng,
+  );
+  res.json(result);
+});
+
+airportsRouter.get('/:zoneId/queue', async (req, res) => {
+  const terminalCode =
+    typeof req.query.terminalCode === 'string' ? req.query.terminalCode : undefined;
+  const categoryCode =
+    typeof req.query.categoryCode === 'string' ? req.query.categoryCode : undefined;
+  const entries = await listWaitingQueueEntries({
+    zoneId: req.params.zoneId,
+    terminalCode,
+    categoryCode,
+  });
+  res.json({
+    zoneId: req.params.zoneId,
+    waitingCount: entries.length,
+    entries: entries.map((e) => ({
+      driverId: e.driverId,
+      queuePosition: e.queuePosition,
+      terminalCode: e.terminalCode,
+      categories: e.categories,
+      enteredAt: e.enteredAt.toISOString(),
+    })),
+  });
 });

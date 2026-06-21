@@ -117,6 +117,8 @@ export async function updateDriverLocation(input: {
     }
     const session = memorySessions.get(input.driverId);
     if (session) session.lastHeartbeatAt = new Date();
+    const { syncAirportQueueFromLocation } = await import('../airport/airportQueueService.js');
+    void syncAirportQueueFromLocation(input.driverId, input.lat, input.lng);
     return { ok: true, sessionId: session?.sessionId ?? null };
   }
 
@@ -185,6 +187,9 @@ export async function updateDriverLocation(input: {
     },
     { driverId: input.driverId, rideId },
   );
+
+  const { syncAirportQueueFromLocation } = await import('../airport/airportQueueService.js');
+  void syncAirportQueueFromLocation(input.driverId, input.lat, input.lng);
 
   return { ok: true, sessionId };
 }

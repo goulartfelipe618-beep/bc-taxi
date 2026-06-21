@@ -221,6 +221,8 @@ async function dispatchOffers(
       { offerId: offer.id, rideId: ride.id, categoryCode: ride.categoryCode },
       { driverId: top.driver.userId, rideId: ride.id, userIds: [ride.passengerId] },
     );
+    const { markQueueOffered } = await import('../airport/airportQueueService.js');
+    void markQueueOffered(top.driver.userId, ride.id);
     return [offer];
   }
 
@@ -252,6 +254,7 @@ async function dispatchOffers(
     created.push(offer);
   }
 
+  const { markQueueOffered } = await import('../airport/airportQueueService.js');
   for (const offer of created) {
     void emitEvent(
       'RIDE_OFFERED',
@@ -260,6 +263,7 @@ async function dispatchOffers(
       { offerId: offer.id, rideId: ride.id, categoryCode: ride.categoryCode },
       { driverId: offer.driverId, rideId: ride.id, userIds: [ride.passengerId] },
     );
+    void markQueueOffered(offer.driverId, ride.id);
   }
   return created;
 }
@@ -297,7 +301,13 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
   });
   const passenger = buildPassengerContext(ride, passengerReputation);
   const eligible = await filterEligibleDrivers(allDrivers, ride, passenger, radiusM);
-  const scored = scoreCandidates(eligible, ride, passenger, radiusM, agingBonus);
+  let scored = scoreCandidates(eligible, ride, passenger, radiusM, agingBonus);
+  const { shouldApplyAirportQueue, rankCandidatesForAirportQueue } = await import(
+    '../airport/airportQueueService.js'
+  );
+  if (await shouldApplyAirportQueue(ride)) {
+    scored = await rankCandidatesForAirportQueue(scored, ride);
+  }
 
   const attempt = await persistAttempt(ride, stageIndex + 1, radiusM, strategy, scored);
   await afterAttemptPersisted({ attempt, ride, scored, agingBonus, idempotencyKey });
@@ -428,6 +438,8 @@ export async function acceptOffer(offerId: string, driverId: string): Promise<Ri
         driverId,
         rideId: ride.id,
       });
+      const { markQueueAccepted } = await import('../airport/airportQueueService.js');
+      void markQueueAccepted(driverId, ride.id);
     }
     return assigned;
   }
@@ -458,6 +470,8 @@ export async function acceptOffer(offerId: string, driverId: string): Promise<Ri
       driverId,
       rideId: ride.id,
     });
+    const { markQueueAccepted } = await import('../airport/airportQueueService.js');
+    void markQueueAccepted(driverId, ride.id);
   }
   return assignedPg;
 }

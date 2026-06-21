@@ -7,6 +7,10 @@ import { listActiveBlocks } from '../fraud/fraudEnforcementService.js';
 import { getDeviceGraph } from '../fraud/deviceGraphService.js';
 import { getLocationTrust } from '../fraud/locationTrustService.js';
 import { processPendingFraudCases, autoReviewCase } from '../fraud/fraudCaseReviewService.js';
+import {
+  listSuspiciousRideFlags,
+  getSuspiciousFlagsForRide,
+} from '../fraud/suspiciousRideService.js';
 
 export const fraudRouter = Router();
 
@@ -75,4 +79,16 @@ fraudRouter.post('/cases/:caseId/review', async (req, res) => {
     return;
   }
   res.json({ result });
+});
+
+fraudRouter.get('/suspicious-rides', async (req, res) => {
+  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const limit = Number(req.query.limit ?? 50);
+  const flags = await listSuspiciousRideFlags({ status, limit });
+  res.json({ flags, count: flags.length });
+});
+
+fraudRouter.get('/suspicious-rides/:rideId', async (req, res) => {
+  const flags = await getSuspiciousFlagsForRide(req.params.rideId);
+  res.json({ flags });
 });

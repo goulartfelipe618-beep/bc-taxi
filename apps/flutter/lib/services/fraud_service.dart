@@ -91,4 +91,17 @@ class FraudService {
     if (res.statusCode != 200) return null;
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
+  static Future<List<Map<String, dynamic>>> fetchSuspiciousRides({
+    required String token,
+    int limit = 50,
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl/v1/fraud/suspicious-rides?limit=$limit');
+    final res = await http
+        .get(uri, headers: _headers(token))
+        .timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) return [];
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return (body['flags'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+  }
 }

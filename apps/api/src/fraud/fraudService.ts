@@ -12,7 +12,8 @@ export type FraudSignalType =
   | 'GPS_STALE'
   | 'RAPID_CANCEL'
   | 'PAYMENT_FAIL'
-  | 'DEVICE_ANOMALY';
+  | 'DEVICE_ANOMALY'
+  | 'SUSPICIOUS_RIDE_PATTERN';
 
 const memorySignals: Array<{ userId: string; score: number }> = [];
 const RISK_THRESHOLD = 0.75;
@@ -25,6 +26,7 @@ const severityByType: Record<FraudSignalType, { severity: string; delta: number 
   RAPID_CANCEL: { severity: 'medium', delta: 0.06 },
   PAYMENT_FAIL: { severity: 'medium', delta: 0.05 },
   DEVICE_ANOMALY: { severity: 'high', delta: 0.1 },
+  SUSPICIOUS_RIDE_PATTERN: { severity: 'high', delta: 0.1 },
 };
 
 export async function recordFraudSignal(input: {

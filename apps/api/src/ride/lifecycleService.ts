@@ -221,6 +221,11 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     userIds: [completed.passengerId],
     driverId: completed.driverId,
   });
+
+  void import('../fraud/suspiciousRideService.js').then(({ analyzeCompletedRide }) =>
+    analyzeCompletedRide(completed),
+  );
+
   return completed;
 }
 

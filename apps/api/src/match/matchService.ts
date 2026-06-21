@@ -437,6 +437,13 @@ export async function getDriverPendingOffers(driverId: string) {
   return getPendingOffersForDriverPg(driverId);
 }
 
+async function notifySuspiciousCancel(ride: RideRecord | null) {
+  if (!ride || ride.status !== 'CANCELLED' || !ride.driverId) return;
+  void import('../fraud/suspiciousRideService.js').then(({ analyzeCancelledRide }) =>
+    analyzeCancelledRide(ride),
+  );
+}
+
 export async function cancelRide(rideId: string, passengerId: string, reason?: string) {
   const ride = await getRide(rideId);
   if (!ride || ride.passengerId !== passengerId) return null;
@@ -460,6 +467,7 @@ export async function cancelRide(rideId: string, passengerId: string, reason?: s
         userIds: [passengerId],
         driverId: cancelled.driverId,
       });
+      void notifySuspiciousCancel(cancelled);
     }
     return cancelled;
   }
@@ -475,6 +483,7 @@ export async function cancelRide(rideId: string, passengerId: string, reason?: s
       userIds: [passengerId],
       driverId: updated.driverId,
     });
+    void notifySuspiciousCancel(updated);
   }
   return updated;
 }
@@ -503,6 +512,7 @@ export async function driverCancelRide(rideId: string, driverId: string, reason?
         userIds: [ride.passengerId, driverId],
         driverId,
       });
+      void notifySuspiciousCancel(cancelled);
     }
     return cancelled;
   }
@@ -516,6 +526,7 @@ export async function driverCancelRide(rideId: string, driverId: string, reason?
       userIds: [ride.passengerId, driverId],
       driverId,
     });
+    void notifySuspiciousCancel(updated);
   }
   return updated;
 }

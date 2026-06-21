@@ -42,9 +42,22 @@ export async function upsertPlaceCache(place: MapPlace) {
   );
 }
 
-export async function recordPlaceConfirmation(userId: string, place: MapPlace) {
+export async function recordPlaceConfirmation(
+  userId: string,
+  place: MapPlace,
+  sessionToken?: string,
+) {
   await upsertPlaceCache(place);
   const featureId = place.featureId ?? place.id;
+
+  const { bumpPlacePopularity } = await import('./popularityStore.js');
+  void bumpPlacePopularity({
+    featureId,
+    label: place.label,
+    lat: place.lat,
+    lng: place.lng,
+    kind: 'pickup',
+  });
 
   if (useMemory()) {
     const list = memoryHistory.get(userId) ?? [];
@@ -64,10 +77,10 @@ export async function recordPlaceConfirmation(userId: string, place: MapPlace) {
 
   const { rows } = await pool.query(
     `INSERT INTO user_place_history
-       (user_id, feature_id, label, address_text, lat, lng, source)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (user_id, feature_id, label, address_text, lat, lng, source, session_token)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, feature_id, label, address_text, lat, lng, source, confirmed_at`,
-    [userId, featureId, place.label, place.address, place.lat, place.lng, place.source],
+    [userId, featureId, place.label, place.address, place.lat, place.lng, place.source, sessionToken ?? null],
   );
   return mapHistoryRow(rows[0]);
 }

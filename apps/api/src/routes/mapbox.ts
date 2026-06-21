@@ -4,6 +4,15 @@ import { authMiddleware } from '../middleware/auth.js';
 import { autocompletePlaces, getMapboxPublicConfig } from '../mapbox/mapboxClient.js';
 import { listRecentPlaces, recordPlaceConfirmation, toPublicPlaceHistory } from '../places/placeStore.js';
 import {
+  listPlaceAliases,
+  upsertPlaceAlias,
+} from '../places/aliasStore.js';
+import {
+  reverseGeocode,
+  searchPlacesIntelligent,
+  toPublicRankedSuggestion,
+} from '../places/intelligentSearchService.js';
+import {
   deleteSavedPlace,
   listSavedPlaces,
   toPublicSavedPlace,
@@ -19,6 +28,13 @@ import type { RouteStrategy } from '../route/types.js';
 const autocompleteQuery = z.object({
   q: z.string().min(1),
   limit: z.coerce.number().int().min(1).max(20).optional(),
+  proximityLat: z.coerce.number().optional(),
+  proximityLng: z.coerce.number().optional(),
+  sessionToken: z.string().optional(),
+});
+
+const searchQuery = autocompleteQuery.extend({
+  regionCluster: z.string().optional(),
 });
 
 const directionsQuery = z.object({
@@ -56,8 +72,52 @@ placesRouter.get('/autocomplete', async (req, res) => {
     return;
   }
 
-  const places = await autocompletePlaces(parsed.data.q, parsed.data.limit ?? 8);
+  const places = await autocompletePlaces(parsed.data.q, parsed.data.limit ?? 8, {
+    proximityLat: parsed.data.proximityLat,
+    proximityLng: parsed.data.proximityLng,
+    sessionToken: parsed.data.sessionToken,
+  });
   res.json({ places });
+});
+
+placesRouter.get('/search', authMiddleware, async (req, res) => {
+  const parsed = searchQuery.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const suggestions = await searchPlacesIntelligent({
+    query: parsed.data.q,
+    userId: req.user!.id,
+    proximityLat: parsed.data.proximityLat,
+    proximityLng: parsed.data.proximityLng,
+    sessionToken: parsed.data.sessionToken,
+    limit: parsed.data.limit ?? 10,
+    regionCluster: parsed.data.regionCluster,
+  });
+
+  res.json({
+    suggestions: suggestions.map(toPublicRankedSuggestion),
+    ranking: {
+      formula: '0.38*Text + 0.24*Geo + 0.18*Affinity + 0.12*Popularity + 0.08*Recency',
+    },
+  });
+});
+
+placesRouter.get('/reverse', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    res.status(400).json({ error: 'lat e lng são obrigatórios' });
+    return;
+  }
+  const place = await reverseGeocode(lat, lng);
+  if (!place) {
+    res.status(404).json({ error: 'Endereço não encontrado' });
+    return;
+  }
+  res.json({ place });
 });
 
 placesRouter.get('/config', (_req, res) => {
@@ -72,6 +132,7 @@ const confirmPlaceSchema = z.object({
   lng: z.number(),
   featureId: z.string().optional(),
   source: z.enum(['mapbox', 'mock']).optional(),
+  sessionToken: z.string().optional(),
 });
 
 placesRouter.post('/confirm', authMiddleware, async (req, res) => {
@@ -91,7 +152,7 @@ placesRouter.post('/confirm', authMiddleware, async (req, res) => {
     source: parsed.data.source ?? 'mapbox',
   };
 
-  const record = await recordPlaceConfirmation(req.user!.id, place);
+  const record = await recordPlaceConfirmation(req.user!.id, place, parsed.data.sessionToken);
   res.status(201).json({ place: toPublicPlaceHistory(record) });
 });
 
@@ -133,6 +194,64 @@ placesRouter.delete('/saved/:id', authMiddleware, async (req, res) => {
     return;
   }
   res.json({ ok: true });
+});
+
+const aliasSchema = z.object({
+  alias: z.string().min(2).max(40),
+  id: z.string(),
+  label: z.string(),
+  address: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  featureId: z.string().optional(),
+});
+
+placesRouter.get('/aliases', authMiddleware, async (req, res) => {
+  const aliases = await listPlaceAliases(req.user!.id);
+  res.json({
+    aliases: aliases.map((a) => ({
+      id: a.id,
+      alias: a.alias,
+      label: a.label,
+      address: a.address,
+      lat: a.lat,
+      lng: a.lng,
+      featureId: a.featureId,
+    })),
+  });
+});
+
+placesRouter.post('/aliases', authMiddleware, async (req, res) => {
+  const parsed = aliasSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const record = await upsertPlaceAlias(req.user!.id, {
+    alias: parsed.data.alias,
+    place: {
+      id: parsed.data.id,
+      label: parsed.data.label,
+      address: parsed.data.address,
+      lat: parsed.data.lat,
+      lng: parsed.data.lng,
+      featureId: parsed.data.featureId ?? parsed.data.id,
+      source: 'mapbox',
+    },
+  });
+
+  res.status(201).json({
+    alias: {
+      id: record.id,
+      alias: record.alias,
+      label: record.label,
+      address: record.address,
+      lat: record.lat,
+      lng: record.lng,
+      featureId: record.featureId,
+    },
+  });
 });
 
 export const routesRouter = Router();

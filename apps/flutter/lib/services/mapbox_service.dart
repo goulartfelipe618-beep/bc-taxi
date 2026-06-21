@@ -78,6 +78,50 @@ class RouteSummary {
 }
 
 class MapboxService {
+  static Future<List<MapPlace>> intelligentSearch(
+    String query, {
+    required String token,
+    int limit = 10,
+    double? proximityLat,
+    double? proximityLng,
+    String? sessionToken,
+  }) async {
+    try {
+      final params = {
+        'q': query,
+        'limit': '$limit',
+        if (proximityLat != null) 'proximityLat': '$proximityLat',
+        if (proximityLng != null) 'proximityLng': '$proximityLng',
+        if (sessionToken != null) 'sessionToken': sessionToken,
+      };
+      final uri = Uri.parse('$apiBaseUrl/v1/places/search').replace(queryParameters: params);
+      final res = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return [];
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (body['suggestions'] as List<dynamic>).cast<Map<String, dynamic>>();
+      return list.map(MapPlace.fromJson).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<MapPlace?> reverseGeocode(double lat, double lng) async {
+    try {
+      final uri = Uri.parse('$apiBaseUrl/v1/places/reverse').replace(
+        queryParameters: {'lat': '$lat', 'lng': '$lng'},
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return MapPlace.fromJson(body['place'] as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<List<MapPlace>> autocomplete(String query, {int limit = 8}) async {
     try {
       final uri = Uri.parse('$apiBaseUrl/v1/places/autocomplete').replace(

@@ -22,7 +22,11 @@ function mapFeature(f: MapboxFeature): MapPlace {
   };
 }
 
-export async function autocompletePlaces(query: string, limit = 8): Promise<MapPlace[]> {
+export async function autocompletePlaces(
+  query: string,
+  limit = 8,
+  opts?: { proximityLat?: number; proximityLng?: number; sessionToken?: string },
+): Promise<MapPlace[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
@@ -30,7 +34,8 @@ export async function autocompletePlaces(query: string, limit = 8): Promise<MapP
   if (!token) return mockAutocomplete(trimmed, limit);
 
   try {
-    const { lat, lng } = config.mapboxDefaultCenter;
+    const lat = opts?.proximityLat ?? config.mapboxDefaultCenter.lat;
+    const lng = opts?.proximityLng ?? config.mapboxDefaultCenter.lng;
     const url = new URL(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json`,
     );
@@ -40,6 +45,7 @@ export async function autocompletePlaces(query: string, limit = 8): Promise<MapP
     url.searchParams.set('country', 'BR');
     url.searchParams.set('proximity', `${lng},${lat}`);
     url.searchParams.set('types', 'address,poi,place');
+    if (opts?.sessionToken) url.searchParams.set('session_token', opts.sessionToken);
 
     const res = await fetch(url);
     if (!res.ok) return mockAutocomplete(trimmed, limit);
@@ -50,6 +56,32 @@ export async function autocompletePlaces(query: string, limit = 8): Promise<MapP
     return features.map(mapFeature);
   } catch {
     return mockAutocomplete(trimmed, limit);
+  }
+}
+
+export async function reverseGeocode(lat: number, lng: number): Promise<MapPlace | null> {
+  const token = config.mapboxAccessToken;
+  if (!token) {
+    const nearest = mockAutocomplete('centro', 1)[0];
+    return nearest ? { ...nearest, lat, lng, label: 'Ponto selecionado', address: nearest.address } : null;
+  }
+
+  try {
+    const url = new URL(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json`,
+    );
+    url.searchParams.set('access_token', token);
+    url.searchParams.set('language', 'pt');
+    url.searchParams.set('types', 'address,poi,place');
+
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { features?: MapboxFeature[] };
+    const feature = data.features?.[0];
+    return feature ? mapFeature(feature) : null;
+  } catch {
+    return null;
   }
 }
 

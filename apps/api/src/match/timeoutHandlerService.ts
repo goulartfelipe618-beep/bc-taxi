@@ -150,7 +150,7 @@ export async function processDueMatchTimeouts(maxStages = 6): Promise<number> {
           driverId: next.driverId,
           offerType: 'sequential',
         });
-        const timeoutMs = getOfferTimeoutSeconds(ride.categoryCode) * 1000;
+        const timeoutMs = (await getOfferTimeoutSeconds(ride.categoryCode)) * 1000;
         await scheduleMatchTimeout({
           rideId: schedule.rideId,
           attemptId: schedule.attemptId,

@@ -10,6 +10,11 @@ import {
 import { getCategory, getPublicCategory, listCategories } from '../domain/rideCategories.js';
 import { DEFAULT_PRICING_REGION, formatFare } from '../domain/pricing.js';
 import type { RideCategoryCode } from '../domain/types.js';
+import {
+  buildOperationalParamsWithPricing,
+  getUserSegmentPolicy,
+} from '../config/operationalParamsService.js';
+import { config } from '../config.js';
 
 export const categoriesRouter = Router();
 
@@ -95,4 +100,21 @@ configRouter.get('/match', (_req, res) => {
 
 configRouter.get('/pricing', (_req, res) => {
   res.json({ defaultRegion: DEFAULT_PRICING_REGION });
+});
+
+configRouter.get('/operational/:categoryCode', async (req, res) => {
+  const regionId =
+    typeof req.query.regionId === 'string' ? req.query.regionId : config.defaultServiceRegionId;
+  const params = await buildOperationalParamsWithPricing(
+    req.params.categoryCode,
+    regionId,
+  );
+  res.json({ regionId, params });
+});
+
+configRouter.get('/segments/:tier', async (req, res) => {
+  const regionId =
+    typeof req.query.regionId === 'string' ? req.query.regionId : config.defaultServiceRegionId;
+  const policy = await getUserSegmentPolicy(req.params.tier, regionId);
+  res.json({ regionId, policy });
 });

@@ -190,7 +190,7 @@ async function dispatchOffers(
   scored: ScoredCandidate[],
   strategy: 'sequential' | 'parallel',
 ) {
-  const timeoutSec = getOfferTimeoutSeconds(ride.categoryCode);
+  const timeoutSec = await getOfferTimeoutSeconds(ride.categoryCode);
   const expiresAt = new Date(Date.now() + timeoutSec * 1000);
 
   if (strategy === 'sequential') {
@@ -272,7 +272,7 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
   const ride = await getRide(rideId);
   if (!ride || !['REQUESTED', 'OFFERING'].includes(ride.status)) return ride;
 
-  const stages = getRadiusStages(ride.categoryCode);
+  const stages = await getRadiusStages(ride.categoryCode);
   if (stageIndex >= stages.length) {
     if (useMemory()) await memoryMatchStore.updateRideStatus(rideId, 'NO_DRIVERS');
     else await updateRideStatusPg(rideId, 'NO_DRIVERS');
@@ -338,7 +338,7 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
   else await finishAttemptPg(attempt.id, 'offered');
   await dispatchOffers(ride, attempt.id, scored, strategy);
 
-  const timeoutMs = getOfferTimeoutSeconds(ride.categoryCode) * 1000;
+  const timeoutMs = (await getOfferTimeoutSeconds(ride.categoryCode)) * 1000;
   await scheduleMatchTimeout({
     rideId,
     attemptId: attempt.id,

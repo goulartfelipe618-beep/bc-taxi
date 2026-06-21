@@ -144,11 +144,15 @@ export async function buildEngineQuote(input: EngineQuoteInput): Promise<EngineQ
   const category = getCategory(input.categoryCode);
   if (!category) throw new Error(`Categoria inválida: ${input.categoryCode}`);
 
+  const dynamicCap = await (
+    await import('../config/operationalParamsService.js')
+  ).resolveDynamicCap(input.categoryCode, regionId);
+
   const req: QuoteRequest = {
     categoryCode: input.categoryCode,
     distanceKm: input.distanceKm,
     durationMin: input.durationMin,
-    dynamicMultiplier: clampDynamic(dynamicMultiplier, category.dynamicCap),
+    dynamicMultiplier: clampDynamic(dynamicMultiplier, dynamicCap),
     tollsCentavos: tollsCentavos ?? 0,
     airportFeeCentavos,
     addonsCentavos: (input.addonsCentavos ?? 0) + trafficSurchargeCentavos,

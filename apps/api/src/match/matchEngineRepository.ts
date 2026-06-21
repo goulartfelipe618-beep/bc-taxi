@@ -118,7 +118,7 @@ export async function createOfferForCandidate(input: {
   driverId: string;
   offerType: 'sequential' | 'parallel';
 }) {
-  const timeoutSec = getOfferTimeoutSeconds(input.ride.categoryCode);
+  const timeoutSec = await getOfferTimeoutSeconds(input.ride.categoryCode);
   const expiresAt = new Date(Date.now() + timeoutSec * 1000);
 
   const offer = useMemory()

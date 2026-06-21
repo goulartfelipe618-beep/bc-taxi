@@ -203,12 +203,12 @@ export function usesSequentialOffer(categoryCode: string): boolean {
   return category.isPremium || category.code === 'aeroporto' || category.code === 'corporativo';
 }
 
-export function getRadiusStages(categoryCode: string): number[] {
-  const category = getCategory(categoryCode as RideCategoryCode);
-  return category?.searchRadiusStagesM ?? [800, 1500, 2500, 4000, 6500, 10000];
+export async function getRadiusStages(categoryCode: string, regionId?: string): Promise<number[]> {
+  const { resolveRadiusStages } = await import('../config/operationalParamsService.js');
+  return resolveRadiusStages(categoryCode, regionId);
 }
 
-export function getOfferTimeoutSeconds(categoryCode: string): number {
-  const category = getCategory(categoryCode as RideCategoryCode);
-  return category?.offerTimeoutSeconds ?? 8;
+export async function getOfferTimeoutSeconds(categoryCode: string, regionId?: string): Promise<number> {
+  const { resolveOfferTimeoutSeconds } = await import('../config/operationalParamsService.js');
+  return resolveOfferTimeoutSeconds(categoryCode, regionId);
 }

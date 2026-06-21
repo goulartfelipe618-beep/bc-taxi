@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getCategory } from '../domain/rideCategories.js';
-import { isCashPaymentAllowed, isPassengerCategoryAllowed, isPassengerPrepayRequired } from '../domain/reputation.js';
+import { isCashPaymentAllowed, isPassengerCategoryAllowed, isPassengerPrepayRequired, getTier } from '../domain/reputation.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { quoteWithDynamicPricing } from '../pricing/dynamicPricingService.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -25,6 +25,10 @@ import {
   getIntentPix,
 } from '../payments/paymentService.js';
 import { evaluateRideRisk } from '../fraud/riskEngine.js';
+import {
+  captureRideOperationalConfigSnapshot,
+  isPaymentMethodAllowed,
+} from '../config/operationalParamsService.js';
 import {
   driverCompleteRide,
   driverMarkArrived,
@@ -166,6 +170,7 @@ ridesRouter.post('/', async (req, res) => {
   }
 
   const passengerRepScore = await getPassengerReputation(req.user!.id);
+  const passengerTier = getTier(passengerRepScore);
   if (!isPassengerCategoryAllowed(passengerRepScore, parsed.data.categoryCode)) {
     res.status(403).json({
       error: 'Reputação insuficiente para esta categoria',
@@ -196,6 +201,10 @@ ridesRouter.post('/', async (req, res) => {
 
   if (methodType === 'cash' && !isCashPaymentAllowed(passengerRepScore)) {
     res.status(403).json({ error: 'Pagamento em dinheiro não permitido para sua reputação atual' });
+    return;
+  }
+  if (!(await isPaymentMethodAllowed(methodType, passengerTier))) {
+    res.status(403).json({ error: 'Forma de pagamento não habilitada para seu segmento' });
     return;
   }
   if (isPassengerPrepayRequired(passengerRepScore) && methodType === 'cash') {
@@ -350,6 +359,12 @@ ridesRouter.post('/', async (req, res) => {
     accessibilityNeedCode: accessibilityCheck.needCode,
     assistiveDeviceCount: parsed.data.assistiveDeviceCount,
     estimatedFareCentavos,
+  });
+
+  void captureRideOperationalConfigSnapshot({
+    rideId: ride.id,
+    categoryCode: ride.categoryCode,
+    reputationTier: passengerTier,
   });
 
   let accessibilityPayload: ReturnType<typeof toPublicAccessibilityRequest> | undefined;

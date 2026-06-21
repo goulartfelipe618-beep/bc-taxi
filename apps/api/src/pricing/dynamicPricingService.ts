@@ -172,6 +172,8 @@ export async function refreshDynamicPricing(
   const recentEffectiveMultipliers = recentLogs.map((l) => l.multiplierEffective);
   const recentRequestCount = await countRecentRideRequests();
   const onlineDrivers = await countOnlineDrivers();
+  const { resolveDynamicCap } = await import('../config/operationalParamsService.js');
+  const categoryCap = await resolveDynamicCap(categoryCode, regionId);
 
   const finalized = finalizeDynamicMultiplier({
     multiplierRaw,
@@ -179,7 +181,7 @@ export async function refreshDynamicPricing(
     recentEffectiveMultipliers,
     recentRequestCount,
     onlineDrivers,
-    categoryCap: category.dynamicCap,
+    categoryCap,
     regulatoryMaxMultiplier: guard.regulatoryMaxMultiplier,
     minSampleRequests: guard.minSampleRequests,
     minOnlineDrivers: guard.minOnlineDrivers,
@@ -187,7 +189,7 @@ export async function refreshDynamicPricing(
     conservativeMaxMultiplier: guard.conservativeMaxMultiplier,
   });
 
-  const multiplierEffective = clampDynamic(finalized.multiplierEffective, category.dynamicCap);
+  const multiplierEffective = clampDynamic(finalized.multiplierEffective, categoryCap);
 
   if (useMemory()) {
     memorySnapshots.set(snapshotKey(regionId, categoryCode), {

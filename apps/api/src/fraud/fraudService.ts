@@ -55,6 +55,19 @@ export async function recordFraudSignal(input: {
   );
 
   const riskScore = await getUserRiskScore(input.userId);
+  if (riskScore >= RISK_THRESHOLD) {
+    if (input.signalType === 'GPS_JUMP') {
+      const { revokeReputationBenefits } = await import('../reviews/revocationService.js');
+      await revokeReputationBenefits({
+        userId: input.userId,
+        userRole: 'driver',
+        reason: 'GPS falso ou salto anômalo confirmado',
+        sourceType: 'gps_spoof',
+        sourceRef: input.rideId,
+      });
+    }
+  }
+
   if (riskScore >= RISK_THRESHOLD && !useMemory()) {
     await pool.query(
       `INSERT INTO fraud_cases (id, user_id, status, risk_score, summary, metadata_json)

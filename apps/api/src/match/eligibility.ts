@@ -1,5 +1,5 @@
 import { getCategory } from '../domain/rideCategories.js';
-import { getTier, driverBlockedCategories } from '../domain/reputation.js';
+import { getTier, getTierBenefits, driverBlockedCategories } from '../domain/reputation.js';
 import { computeMatchScore } from '../domain/match.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { isPairBlocked } from './blockService.js';
@@ -130,6 +130,7 @@ export function scoreCandidates(
   const category = getCategory(ride.categoryCode as RideCategoryCode);
   const etaMaxStage = estimateEtaSeconds(radiusM);
   const passengerTier = getTier(passenger.reputationScore);
+  const passengerBenefits = getTierBenefits(passengerTier, 'passenger');
   const isPassengerElite = passengerTier === 'elite';
   const isPassengerPremium = passengerTier === 'premium' || isPassengerElite;
 
@@ -140,6 +141,7 @@ export function scoreCandidates(
     const etaPickupS = estimateEtaSeconds(distanceM);
     const compatibility = driverSupportsCategory(driver, ride.categoryCode);
     const driverTier = getTier(driver.reputationScore);
+    const driverBenefits = getTierBenefits(driverTier, 'driver');
     const isDriverElite = driverTier === 'elite';
     const isDriverPremium = driverTier === 'premium' || isDriverElite;
 
@@ -171,6 +173,8 @@ export function scoreCandidates(
       isPcdAdapted: Boolean(needCode) && driver.wheelchairAccessible && needCode === 'wheelchair',
       isPcdPriority: Boolean(needCode) && driverHasPcdOptIn(driver),
       isShared: ride.isShared,
+      passengerDispatchBonusPct: passengerBenefits.dispatchPriorityPct,
+      driverQueueBonusPct: driverBenefits.queuePriorityBonusPct,
     });
 
     return { driver, score, etaPickupS, distanceM, compatibility, featureVector };

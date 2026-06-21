@@ -7,6 +7,7 @@ export const MATCH_CONFIG: MatchConfig = {
   passengerPremiumBonus: 0.03,
   driverEliteBonus: 0.05,
   driverPremiumBonus: 0.025,
+  corporateBonus: 0.04,
   pcdPriorityBonus: 0.1,
   sequentialOfferTimeoutSeconds: 6,
   parallelBatchSizeMin: 3,
@@ -31,6 +32,9 @@ export type MatchCandidateInput = {
   isPcdPriority?: boolean;
   isShared?: boolean;
   extraEtaSeconds?: number;
+  /** Bônus percentual da faixa reputacional (guia §166–179). */
+  passengerDispatchBonusPct?: number;
+  driverQueueBonusPct?: number;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -64,6 +68,8 @@ export function computeMatchScore(input: MatchCandidateInput): number {
     const detour = clamp(input.extraEtaSeconds / (12 * 60), 0, 0.2);
     score -= detour;
   }
+  if (input.passengerDispatchBonusPct) score += input.passengerDispatchBonusPct / 100;
+  if (input.driverQueueBonusPct) score += input.driverQueueBonusPct / 100;
   return score;
 }
 

@@ -1,6 +1,7 @@
 import { getRide } from '../match/matchService.js';
 import type { RideRecord } from '../match/types.js';
 import { captureRidePayment } from '../payments/paymentService.js';
+import { openReviewObligationsForRide } from '../reviews/pendingReviewService.js';
 import { memoryMatchStore, useMemory } from '../stores/memoryMatchStore.js';
 import { releaseDriverPg, updateRideLifecyclePg } from '../stores/rideRepository.js';
 import {
@@ -199,6 +200,15 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
   });
 
   await releaseDriver(completed);
+
+  if (completed.driverId) {
+    await openReviewObligationsForRide({
+      rideId: completed.id,
+      passengerId: completed.passengerId,
+      driverId: completed.driverId,
+      completedAt: completed.completedAt ?? new Date(),
+    });
+  }
 
   const receipt = await issueRideReceipt(completed);
   void emitEvent('RIDE_COMPLETED', 'ride', rideId, {

@@ -10,10 +10,16 @@ import {
 import { getRide } from '../match/matchService.js';
 import { pool } from '../db.js';
 import { memoryMatchStore, useMemory } from '../stores/memoryMatchStore.js';
+import { listUserBadges, syncUserBadges, toPublicBadge } from './badgeService.js';
 import {
   getDriverOperationalMetrics,
   getPassengerOperationalMetrics,
 } from './metricsService.js';
+import { getPendingReviewsForUser } from './pendingReviewService.js';
+import {
+  hasActiveBenefitRevocation,
+  stripBenefitsForRevocation,
+} from './revocationService.js';
 import { listReviewsForUser, listReviewTags, type RideReviewRecord } from './reviewStore.js';
 
 const memoryPassengerRep = new Map<string, { score: number; tier: string }>();
@@ -122,7 +128,53 @@ export async function getDriverReputation(driverId: string): Promise<number> {
 
 export async function getUserReputationProfile(userId: string, role: 'passenger' | 'driver') {
   const score = role === 'driver' ? await getDriverReputation(userId) : await getPassengerReputation(userId);
-  return getReputationProfile(score, role);
+  const profile = getReputationProfile(score, role);
+  const revocation = await hasActiveBenefitRevocation(userId, role);
+  if (revocation) {
+    return {
+      ...profile,
+      benefits: stripBenefitsForRevocation(profile.benefits),
+      benefitsRevoked: true,
+      revocationReason: revocation.reason,
+    };
+  }
+  return profile;
+}
+
+export async function getFullReputationDashboard(userId: string, role: 'passenger' | 'driver') {
+  const profile = await getUserReputationProfile(userId, role);
+  const badges = await listUserBadges(userId);
+  const pendingReviews = await getPendingReviewsForUser(userId);
+  const recentReviews = (await listReviewsForUser(userId)).slice(0, 10).map((r) => ({
+    rideId: r.rideId,
+    stars: r.stars,
+    reviewerRole: r.reviewerRole,
+    createdAt: r.createdAt.toISOString(),
+  }));
+
+  let history: Array<{ compositeScore: number; tier: string; snapshotAt: string }> = [];
+  if (!useMemory()) {
+    const table = role === 'driver' ? 'driver_reputation_snapshots' : 'passenger_reputation_snapshots';
+    const col = role === 'driver' ? 'driver_user_id' : 'passenger_user_id';
+    const { rows } = await pool.query(
+      `SELECT composite_score, tier, snapshot_at FROM ${table}
+       WHERE ${col} = $1 ORDER BY snapshot_at DESC LIMIT 12`,
+      [userId],
+    );
+    history = rows.map((row) => ({
+      compositeScore: Number(row.composite_score),
+      tier: row.tier as string,
+      snapshotAt: new Date(row.snapshot_at as string).toISOString(),
+    }));
+  }
+
+  return {
+    profile,
+    badges: badges.map(toPublicBadge),
+    pendingReviews,
+    recentReviewsReceived: recentReviews,
+    history,
+  };
 }
 
 export async function recalculateUserReputation(userId: string, role: 'passenger' | 'driver') {
@@ -190,6 +242,8 @@ export async function recalculateUserReputation(userId: string, role: 'passenger
     weightedReviewCount: weightedCount,
     metrics,
   });
+
+  await syncUserBadges(userId, role, compositeScore);
 
   if (!useMemory()) {
     await pool.query(

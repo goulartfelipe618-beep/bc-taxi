@@ -1,5 +1,6 @@
 import { getRide } from '../match/matchService.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import { markObligationSubmitted } from './obligationStore.js';
 import { findReview, insertReview, toPublicReview, validateReviewTags } from './reviewStore.js';
 import { recalculateUserReputation } from './reputationService.js';
 
@@ -54,6 +55,8 @@ export async function submitRideReview(input: SubmitReviewInput) {
     comment: input.comment,
     tags,
   });
+
+  await markObligationSubmitted(input.rideId, input.reviewerUserId, review.id);
 
   void emitEvent(
     'REVIEW_CREATED',

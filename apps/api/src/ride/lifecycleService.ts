@@ -14,6 +14,7 @@ import {
 } from './codeStore.js';
 import type { CodeRole, VerifyCodeResult, VerificationPublic } from './types.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import { issueRideReceipt } from '../receipts/receiptService.js';
 import { recordFraudSignal } from '../fraud/fraudService.js';
 import { bindRouteToRide, getActiveRoute, recalculateActiveRoute, toPublicActiveRoute } from '../route/routeService.js';
 
@@ -190,7 +191,13 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
   if (!completed) throw new Error('Falha ao concluir corrida');
 
   await releaseDriver(completed);
-  void emitEvent('RIDE_COMPLETED', 'ride', rideId, { fareCentavos: amount }, {
+
+  const receipt = await issueRideReceipt(completed);
+  void emitEvent('RIDE_COMPLETED', 'ride', rideId, {
+    fareCentavos: amount,
+    receiptId: receipt.id,
+    receiptNumber: receipt.receiptNumber,
+  }, {
     rideId,
     userIds: [completed.passengerId],
     driverId: completed.driverId,

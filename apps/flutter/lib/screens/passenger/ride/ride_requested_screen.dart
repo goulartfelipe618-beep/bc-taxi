@@ -7,10 +7,12 @@ import '../../../models/payment_intent.dart';
 import '../../../models/ride.dart';
 import '../../../services/api_client.dart';
 import '../../../services/payment_service.dart';
+import '../../../services/notification_service.dart';
 import '../../../services/realtime_service.dart';
 import '../../../services/ride_service.dart';
 import '../../../theme/passenger_theme.dart';
 import '../../../widgets/passenger/ride_review_sheet.dart';
+import '../activity/ride_receipt_screen.dart';
 import '../payment/pix_payment_sheet.dart';
 import 'ride_tracking_map.dart';
 
@@ -56,6 +58,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   void initState() {
     super.initState();
     _payment = widget.initialPayment;
+    _registerPushToken();
     _realtime.addListener(_onRealtimeEvent);
     _realtime.connect();
     _realtime.subscribeRide(widget.rideId);
@@ -100,6 +103,24 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
         (type.startsWith('RIDE_') || type == 'DRIVER_LOCATION_UPDATED')) {
       _poll();
     }
+  }
+
+  Future<void> _registerPushToken() async {
+    try {
+      final notifications = NotificationService(ApiClient(widget.token));
+      await notifications.registerPushToken(
+        platform: 'expo',
+        token: demoExpoPushToken(widget.rideId.substring(0, 8)),
+      );
+    } catch (_) {}
+  }
+
+  void _openReceipt() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RideReceiptScreen(rideId: widget.rideId, token: widget.token),
+      ),
+    );
   }
 
   @override
@@ -291,12 +312,19 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
                 children: [
                   if (ride?.canCancel == true)
                     OutlinedButton(onPressed: _cancel, child: const Text('Cancelar corrida')),
-                  if (ride?.status == 'COMPLETED')
+                  if (ride?.status == 'COMPLETED') ...[
+                    OutlinedButton.icon(
+                      onPressed: _openReceipt,
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Ver recibo'),
+                    ),
+                    const SizedBox(height: 8),
                     FilledButton(
                       onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
                       style: FilledButton.styleFrom(backgroundColor: BcColors.black),
                       child: const Text('Concluir'),
                     ),
+                  ],
                 ],
               ),
             ),

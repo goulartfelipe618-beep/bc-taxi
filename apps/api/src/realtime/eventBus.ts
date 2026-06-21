@@ -1,4 +1,5 @@
 import { publishRealtimeEvent, REDIS_CHANNEL } from './distributedCache.js';
+import { dispatchPushForEvent } from '../notifications/notificationService.js';
 import { buildEvent, markOutboxPublished, persistOutboxEvent } from './outboxStore.js';
 import { redisSubscribe } from './redisClient.js';
 import type { RealtimeEvent, RealtimeEventType } from './types.js';
@@ -16,6 +17,7 @@ export async function emitEvent<T extends Record<string, unknown>>(
   const json = JSON.stringify(event);
   wsHub.broadcast(event);
   await publishRealtimeEvent(json);
+  void dispatchPushForEvent(event);
   await markOutboxPublished(event.eventId);
   return event;
 }

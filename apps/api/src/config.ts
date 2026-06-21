@@ -50,4 +50,8 @@ export const config = {
   mercadoPagoAccessToken: process.env.MERCADOPAGO_ACCESS_TOKEN ?? '',
   pagarmeApiKey: process.env.PAGARME_API_KEY ?? '',
   matchUsePostgis: process.env.MATCH_USE_POSTGIS !== 'false',
+  pushNotificationsEnabled: process.env.PUSH_NOTIFICATIONS_ENABLED !== 'false',
+  pushProvider: process.env.PUSH_PROVIDER ?? 'demo',
+  fcmServerKey: process.env.FCM_SERVER_KEY ?? '',
+  adminApiKey: process.env.ADMIN_API_KEY ?? '',
 };

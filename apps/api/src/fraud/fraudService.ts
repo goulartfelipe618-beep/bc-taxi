@@ -1,7 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { useMemory } from '../stores/memoryMatchStore.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import { assertNotFraudBlocked } from './fraudEnforcementService.js';
+import { upsertFraudCase, processPendingFraudCases } from './fraudCaseReviewService.js';
+import { recordLocationTrustEvent } from './locationTrustService.js';
 
 export type FraudSignalType =
   | 'CODE_VERIFY_FAIL'
@@ -28,6 +30,7 @@ const severityByType: Record<FraudSignalType, { severity: string; delta: number 
 export async function recordFraudSignal(input: {
   userId?: string;
   rideId?: string;
+  deviceId?: string;
   signalType: FraudSignalType;
   metadata?: Record<string, unknown>;
 }) {
@@ -80,20 +83,34 @@ export async function recordFraudSignal(input: {
       const { config } = await import('../config.js');
       await setRegionConservativeMode(config.defaultPricingRegionId, true);
     }
-  }
 
-  if (riskScore >= RISK_THRESHOLD && !useMemory()) {
-    await pool.query(
-      `INSERT INTO fraud_cases (id, user_id, status, risk_score, summary, metadata_json)
-       VALUES ($1,$2,'open',$3,$4,$5)`,
-      [
-        randomUUID(),
-        input.userId,
-        riskScore,
-        `Risco elevado: ${input.signalType}`,
-        JSON.stringify({ lastSignal: input.signalType }),
-      ],
-    );
+    const fraudCase = await upsertFraudCase({
+      userId: input.userId,
+      riskScore,
+      summary: `Risco elevado: ${input.signalType}`,
+      reasonCodes: [input.signalType],
+    });
+    void processPendingFraudCases(1);
+
+    const { enforceFromRiskScore } = await import('./fraudEnforcementService.js');
+    await enforceFromRiskScore({
+      userId: input.userId,
+      deviceId: input.deviceId,
+      riskScore,
+      reasonCodes: [input.signalType],
+      userRole: input.signalType.startsWith('GPS') ? 'driver' : undefined,
+      rideId: input.rideId,
+    });
+
+    if (input.deviceId && input.signalType.startsWith('GPS')) {
+      await recordLocationTrustEvent({
+        userId: input.userId,
+        deviceId: input.deviceId,
+        eventType: input.signalType === 'GPS_JUMP' ? 'GPS_JUMP' : 'GPS_STALE',
+      });
+    }
+
+    void fraudCase;
   }
 
   return { recorded: true, riskScore };
@@ -163,7 +180,8 @@ export async function checkGpsIntegrity(input: {
   }
 }
 
-export async function assertUserNotBlocked(userId: string) {
+export async function assertUserNotBlocked(userId: string, deviceId?: string) {
+  await assertNotFraudBlocked({ userId, deviceId, blockScope: 'ride_request' });
   const score = await getUserRiskScore(userId);
   if (score >= 0.95) {
     throw new Error('Conta temporariamente restrita por análise de risco');

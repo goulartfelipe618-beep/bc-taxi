@@ -3,6 +3,9 @@ import { config } from '../config.js';
 import { pool } from '../db.js';
 import { useMemory } from '../stores/memoryMatchStore.js';
 import { recordFraudSignal } from './fraudService.js';
+import { enforceFromRiskScore } from './fraudEnforcementService.js';
+import { getDeviceGraph } from './deviceGraphService.js';
+import { getLocationTrust } from './locationTrustService.js';
 
 export type RiskDecision = 'allow' | 'review' | 'challenge' | 'block';
 
@@ -106,10 +109,23 @@ export async function evaluateRideRisk(input: {
   const reasonCodes: string[] = [];
   let riskScore = 0;
 
-  const linkedAccounts = await countLinkedAccounts(input.userId);
+  const graph = await getDeviceGraph(input.userId);
+  const linkedAccounts = Math.max(await countLinkedAccounts(input.userId), graph.linkedUserCount);
   if (linkedAccounts >= 2) {
     riskScore += 0.25;
     reasonCodes.push('MULTI_ACCOUNT_DEVICE');
+  }
+  if (graph.riskFlags.includes('MULTI_ACCOUNT_CLUSTER')) {
+    riskScore += 0.1;
+    reasonCodes.push('MULTI_ACCOUNT_CLUSTER');
+  }
+
+  if (input.deviceId) {
+    const trust = await getLocationTrust(input.userId, input.deviceId);
+    if (trust && trust.trustScore < 0.5) {
+      riskScore += 0.2;
+      reasonCodes.push('GPS_LOW_TRUST');
+    }
   }
 
   const recentPayments = await countRecentPayments(input.userId);
@@ -145,22 +161,31 @@ export async function evaluateRideRisk(input: {
 
   if (useMemory()) {
     memoryDecisions.push(evaluation);
-    return evaluation;
+  } else {
+    await pool.query(
+      `INSERT INTO risk_decisions (id, user_id, ride_id, decision, risk_score, reason_codes, metadata_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        randomUUID(),
+        input.userId,
+        input.rideId ?? null,
+        decision,
+        riskScore,
+        reasonCodes,
+        JSON.stringify({ paymentMethodType: input.paymentMethodType }),
+      ],
+    );
   }
 
-  await pool.query(
-    `INSERT INTO risk_decisions (id, user_id, ride_id, decision, risk_score, reason_codes, metadata_json)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [
-      randomUUID(),
-      input.userId,
-      input.rideId ?? null,
-      decision,
+  if (decision === 'block' || decision === 'challenge') {
+    await enforceFromRiskScore({
+      userId: input.userId,
+      deviceId: input.deviceId,
       riskScore,
       reasonCodes,
-      JSON.stringify({ paymentMethodType: input.paymentMethodType }),
-    ],
-  );
+      rideId: input.rideId,
+    });
+  }
 
   return evaluation;
 }

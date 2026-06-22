@@ -225,6 +225,13 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     });
   }
 
+  if (completed.isCorporate) {
+    const { captureCorporateInvoiceOnRideComplete } = await import(
+      '../corporate/corporateProductionService.js'
+    );
+    await captureCorporateInvoiceOnRideComplete(rideId, amount);
+  }
+
   const receipt = await issueRideReceipt(completed);
   void emitEvent('RIDE_COMPLETED', 'ride', rideId, {
     fareCentavos: amount,

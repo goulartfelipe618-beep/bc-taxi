@@ -2,6 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { pool } from '../db.js';
 import { createRideRequest, startMatching } from '../match/matchService.js';
+import {
+  createCorporateRideApproval,
+  getCorporateProductionPolicy,
+  requiresCorporateApproval,
+  type CorporateRideApproval,
+  validateCorporatePolicyProduction,
+} from './corporateProductionService.js';
 import { getPassengerReputation } from '../reviews/reputationService.js';
 import { quoteWithDynamicPricing } from '../pricing/dynamicPricingService.js';
 import type { RideCategoryCode } from '../domain/types.js';
@@ -37,7 +44,7 @@ export interface CorporatePolicy {
   weekdayEndHour: number;
 }
 
-const DEMO_ACCOUNT_ID = '00000000-0000-4000-8000-000000000100';
+export const DEMO_ACCOUNT_ID = '00000000-0000-4000-8000-000000000100';
 
 const memoryAccounts: CorporateAccount[] = [
   {
@@ -70,7 +77,10 @@ const memoryInvoiceLines: Array<{
   costCenterId?: string;
   passengerId: string;
   amountCentavos: number;
+  capturedAmountCentavos?: number;
   status: string;
+  statementId?: string;
+  policyVersion?: string;
 }> = [];
 
 function mapPolicy(row: Record<string, unknown>): CorporatePolicy {
@@ -204,16 +214,46 @@ export async function recordCorporateInvoiceLine(input: {
   costCenterId?: string;
   passengerId: string;
   amountCentavos: number;
+  policyVersion?: string;
 }) {
   if (config.useMemoryDb) {
-    memoryInvoiceLines.push({ id: randomUUID(), ...input, status: 'pending' });
+    memoryInvoiceLines.push({
+      id: randomUUID(),
+      ...input,
+      status: 'pending',
+      policyVersion: input.policyVersion,
+    });
     return;
   }
   await pool.query(
-    `INSERT INTO corporate_invoice_lines (account_id, ride_id, cost_center_id, passenger_id, amount_centavos)
-     VALUES ($1,$2,$3,$4,$5) ON CONFLICT (ride_id) DO NOTHING`,
-    [input.accountId, input.rideId, input.costCenterId ?? null, input.passengerId, input.amountCentavos],
+    `INSERT INTO corporate_invoice_lines (account_id, ride_id, cost_center_id, passenger_id, amount_centavos, policy_version)
+     VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (ride_id) DO NOTHING`,
+    [
+      input.accountId,
+      input.rideId,
+      input.costCenterId ?? null,
+      input.passengerId,
+      input.amountCentavos,
+      input.policyVersion ?? null,
+    ],
   );
+}
+
+export async function captureCorporateInvoiceLine(rideId: string, capturedAmountCentavos: number) {
+  if (config.useMemoryDb) {
+    const line = memoryInvoiceLines.find((l) => l.rideId === rideId);
+    if (!line) return false;
+    line.capturedAmountCentavos = capturedAmountCentavos;
+    line.amountCentavos = capturedAmountCentavos;
+    return true;
+  }
+  const { rowCount } = await pool.query(
+    `UPDATE corporate_invoice_lines
+     SET captured_amount_centavos = $2, amount_centavos = $2
+     WHERE ride_id = $1 AND status IN ('pending', 'invoiced')`,
+    [rideId, capturedAmountCentavos],
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 export async function bookCorporateRide(input: {
@@ -248,11 +288,25 @@ export async function bookCorporateRide(input: {
     estimatedFareCentavos = quote.passengerFareCentavos;
   }
 
-  const policyCheck = validateCorporatePolicy(membership.policy, {
-    categoryCode: input.categoryCode,
-    fareCentavos: estimatedFareCentavos,
-  });
+  const prodPolicy = await getCorporateProductionPolicy(input.accountId);
+
+  const policyCheck = prodPolicy
+    ? await validateCorporatePolicyProduction(prodPolicy, {
+        categoryCode: input.categoryCode,
+        fareCentavos: estimatedFareCentavos,
+        pickupLat: input.pickupLat,
+        pickupLng: input.pickupLng,
+        costCenterId: input.costCenterId,
+      })
+    : validateCorporatePolicy(membership.policy, {
+        categoryCode: input.categoryCode,
+        fareCentavos: estimatedFareCentavos,
+      });
   if (!policyCheck.ok) throw new Error(policyCheck.reason ?? 'Política corporativa violada');
+
+  const needsApproval = prodPolicy
+    ? requiresCorporateApproval(prodPolicy, estimatedFareCentavos)
+    : false;
 
   const rep = await getPassengerReputation(input.passengerId);
   const ride = await createRideRequest({
@@ -275,10 +329,55 @@ export async function bookCorporateRide(input: {
     costCenterId: input.costCenterId,
     passengerId: input.passengerId,
     amountCentavos: estimatedFareCentavos,
+    policyVersion: prodPolicy?.configVersion,
   });
+
+  if (needsApproval && prodPolicy) {
+    const approval = await createCorporateRideApproval({
+      accountId: input.accountId,
+      rideId: ride.id,
+      requesterUserId: input.passengerId,
+      costCenterId: input.costCenterId,
+      quotedFareCentavos: estimatedFareCentavos,
+      policyVersion: prodPolicy.configVersion,
+    });
+    return { ride, billingMode: 'corporate' as const, costCenter, pendingApproval: approval };
+  }
 
   const matched = await startMatching(ride.id, rep);
   return { ride: matched ?? ride, billingMode: 'corporate' as const, costCenter };
+}
+
+export async function approveCorporateRideBooking(input: {
+  approvalId: string;
+  accountId: string;
+  decidedByUserId: string;
+}) {
+  const { approveCorporateRide } = await import('./corporateProductionService.js');
+  const approval = await approveCorporateRide(input);
+  const rep = await getPassengerReputation(approval.requesterUserId);
+  const matched = await startMatching(approval.rideId, rep);
+  return { approval, ride: matched };
+}
+
+export async function getCorporateInvoiceLineByRideId(rideId: string) {
+  if (config.useMemoryDb) {
+    return memoryInvoiceLines.find((l) => l.rideId === rideId) ?? null;
+  }
+  const { rows } = await pool.query(
+    `SELECT account_id, policy_version FROM corporate_invoice_lines WHERE ride_id = $1`,
+    [rideId],
+  );
+  if (!rows[0]) return null;
+  return {
+    accountId: rows[0].account_id as string,
+    policyVersion: (rows[0].policy_version as string) ?? undefined,
+  };
+}
+
+export function __testSetCorporateMemberRole(userId: string, role: string) {
+  const member = memoryMembers.find((m) => m.userId === userId);
+  if (member) member.role = role;
 }
 
 export async function listCorporateInvoiceLines(accountId: string, limit = 20) {

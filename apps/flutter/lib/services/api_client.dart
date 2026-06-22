@@ -30,6 +30,14 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> patch(String path, {Object? body}) {
+    return http.patch(
+      Uri.parse('$apiBaseUrl$path'),
+      headers: _headers,
+      body: body == null ? null : jsonEncode(body),
+    );
+  }
+
   static Future<http.Response> getPublic(String path) {
     return http.get(Uri.parse('$apiBaseUrl$path'));
   }

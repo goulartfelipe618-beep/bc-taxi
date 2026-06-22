@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../constants/passenger_data.dart';
+import '../../../services/api_client.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/passenger_account_service.dart';
 import '../../../theme/passenger_theme.dart';
 import '../passenger_routes.dart';
 import 'personal_info_screen.dart';
@@ -18,11 +22,32 @@ class AccountHubScreen extends StatefulWidget {
 
 class _AccountHubScreenState extends State<AccountHubScreen> {
   late int _tab;
+  PassengerAccountProfile? _profile;
+  bool _loadingProfile = true;
 
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab;
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final token = context.read<AuthService>().token;
+    if (token == null) {
+      setState(() => _loadingProfile = false);
+      return;
+    }
+    try {
+      final dashboard = await PassengerAccountService(ApiClient(token)).fetchDashboard();
+      if (!mounted) return;
+      setState(() {
+        _profile = dashboard.profile;
+        _loadingProfile = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingProfile = false);
+    }
   }
 
   static const _tabs = ['Casa', 'Informações pessoais', 'Segurança', 'Privacidade e Dados'];
@@ -76,9 +101,13 @@ class _AccountHubScreenState extends State<AccountHubScreen> {
       case 3:
         return const PrivacyScreen(embedded: true);
       default:
+        final name = _profile?.fullName ?? mockUser.name;
+        final email = _profile?.email ?? mockUser.email;
+        final verified = _profile?.identityStatus == 'verified';
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_loadingProfile) const LinearProgressIndicator(minHeight: 2),
             Row(
               children: [
                 const CircleAvatar(radius: 36, child: Icon(Icons.person, size: 36)),
@@ -87,14 +116,17 @@ class _AccountHubScreenState extends State<AccountHubScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(mockUser.name, style: PassengerTheme.titleMedium),
-                      Text(mockUser.email, style: PassengerTheme.caption),
+                      Text(name, style: PassengerTheme.titleMedium),
+                      Text(email, style: PassengerTheme.caption),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.verified, color: BcColors.blue, size: 16),
+                          Icon(Icons.verified, color: verified ? BcColors.blue : BcColors.gray, size: 16),
                           const SizedBox(width: 4),
-                          Text('Verificado', style: TextStyle(color: BcColors.blue, fontWeight: FontWeight.w600, fontSize: 13)),
+                          Text(
+                            verified ? 'Verificado' : 'Verificação pendente',
+                            style: TextStyle(color: verified ? BcColors.blue : BcColors.gray, fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
                         ],
                       ),
                     ],

@@ -13,6 +13,7 @@ import { categoriesRouter, configRouter, quotesRouter } from './routes/catalog.j
 import { fraudRouter } from './routes/fraud.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { placesRouter, routesRouter } from './routes/mapbox.js';
+import { passengerAccountRouter } from './routes/passengerAccount.js';
 import { paymentsRouter, pspWebhookHandler } from './routes/payments.js';
 import { pricingRouter } from './routes/pricing.js';
 import { receiptsRouter } from './routes/receipts.js';
@@ -92,6 +93,7 @@ async function main() {
   app.use('/v1/config', configRouter);
   app.use('/v1/places', placesRouter);
   app.use('/v1/routes', routesRouter);
+  app.use('/v1/passenger/account', passengerAccountRouter);
   app.use('/v1/payments', paymentsRouter);
   app.use('/v1/rides', ridesRouter);
   app.use('/v1/driver', driverRouter);

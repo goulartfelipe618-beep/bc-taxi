@@ -12,7 +12,9 @@ import '../services/driver_location_tracker.dart';
 import '../services/driver_service.dart';
 import '../services/realtime_service.dart';
 import '../widgets/passenger/ride_review_sheet.dart';
+import 'driver_account_tab.dart';
 import 'driver_compliance_screen.dart';
+import 'driver_earnings_tab.dart';
 import 'login_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -366,18 +368,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         children: [
           _buildHomeTab(firstName),
           Center(child: Text(_activeRide != null ? 'Corrida ${_activeRide!.statusLabel}' : 'Sem corridas')),
-          const Center(child: Text('Ganhos')),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Minha conta', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-                Text(user.email, style: TextStyle(color: Colors.grey[600])),
-                const Chip(label: Text('Motorista')),
-              ],
-            ),
-          ),
+          const DriverEarningsTab(),
+          const DriverAccountTab(),
         ],
       ),
       bottomNavigationBar: NavigationBar(

@@ -50,10 +50,11 @@ import {
 import { submitRideReview } from '../reviews/reviewService.js';
 import { getPassengerReputation } from '../reviews/reputationService.js';
 import {
-  getRideTracking,
-  resolveDriverActiveRideId,
-  toPublicTracking,
-} from '../ride/rideTrackingService.js';
+  getRideTrackingProduction,
+  listRideTrackingSnapshots,
+  toPublicRideTrackingProduction,
+} from '../ride/rideTrackingProductionService.js';
+import { resolveDriverActiveRideId } from '../ride/rideTrackingService.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
 import {
@@ -609,7 +610,7 @@ ridesRouter.get('/:id', async (req, res) => {
     return;
   }
   const verification = await getRideVerification(ride.id);
-  const tracking = await getRideTracking(ride);
+  const tracking = await getRideTrackingProduction(ride);
   let startCodes: { yours: string; partner: string } | undefined;
   let payment: ReturnType<typeof toPublicPaymentIntent> | undefined;
   if (ride.paymentIntentId) {
@@ -634,9 +635,27 @@ ridesRouter.get('/:id', async (req, res) => {
     ride: toPublicRide(ride),
     verification,
     ...(payment ? { payment } : {}),
-    ...(tracking ? { tracking: toPublicTracking(tracking) } : {}),
+    ...(tracking ? { tracking: toPublicRideTrackingProduction(tracking) } : {}),
     ...(startCodes ? { startCodes } : {}),
   });
+});
+
+ridesRouter.get('/:id/tracking', async (req, res) => {
+  const ride = await getRide(req.params.id);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada' });
+    return;
+  }
+  if (ride.passengerId !== req.user!.id && ride.driverId !== req.user!.id) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+  const tracking = await getRideTrackingProduction(ride);
+  if (!tracking) {
+    res.status(404).json({ error: 'Tracking indisponível para o status atual' });
+    return;
+  }
+  res.json({ tracking: toPublicRideTrackingProduction(tracking) });
 });
 
 ridesRouter.get('/:id/route', async (req, res) => {

@@ -9,16 +9,21 @@ class RideTrackingMap extends StatelessWidget {
     super.key,
     required this.ride,
     this.driverLocation,
+    this.routePolyline = const [],
   });
 
   final RideRecord ride;
   final DriverLocation? driverLocation;
+  final List<LatLngPoint> routePolyline;
 
   LatLng get _pickup => LatLng(ride.pickupLat, ride.pickupLng);
   LatLng get _dropoff => LatLng(ride.dropoffLat, ride.dropoffLng);
 
   List<LatLng> get _points {
-    final list = [_pickup, _dropoff];
+    final list = <LatLng>[_pickup, _dropoff];
+    if (routePolyline.isNotEmpty) {
+      list.addAll(routePolyline.map((p) => LatLng(p.lat, p.lng)));
+    }
     if (driverLocation != null) {
       list.add(LatLng(driverLocation!.lat, driverLocation!.lng));
     }
@@ -39,8 +44,20 @@ class RideTrackingMap extends StatelessWidget {
     return LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
   }
 
+  List<LatLng> get _routeLine {
+    if (routePolyline.isNotEmpty) {
+      return routePolyline.map((p) => LatLng(p.lat, p.lng)).toList();
+    }
+    if (driverLocation == null) return [];
+    return [
+      LatLng(driverLocation!.lat, driverLocation!.lng),
+      ride.status == 'IN_PROGRESS' ? _dropoff : _pickup,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final routeLine = _routeLine;
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: FlutterMap(
@@ -53,16 +70,13 @@ class RideTrackingMap extends StatelessWidget {
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.bctaxi.app',
           ),
-          if (driverLocation != null)
+          if (routeLine.length >= 2)
             PolylineLayer(
               polylines: [
                 Polyline(
-                  points: [
-                    LatLng(driverLocation!.lat, driverLocation!.lng),
-                    ride.status == 'IN_PROGRESS' ? _dropoff : _pickup,
-                  ],
+                  points: routeLine,
                   color: Colors.blue.shade700,
-                  strokeWidth: 4,
+                  strokeWidth: routePolyline.isNotEmpty ? 5 : 4,
                 ),
               ],
             ),

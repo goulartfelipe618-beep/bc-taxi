@@ -172,12 +172,20 @@ class RideTracking {
     this.driverLocation,
     this.eta,
     this.distanceM,
+    this.etaSource,
+    this.pollIntervalMs,
+    this.locationStale = false,
+    this.route,
   });
 
   final AssignedDriver driver;
   final DriverLocation? driverLocation;
   final RideEta? eta;
   final int? distanceM;
+  final String? etaSource;
+  final int? pollIntervalMs;
+  final bool locationStale;
+  final ActiveRouteTracking? route;
 
   factory RideTracking.fromJson(Map<String, dynamic> json) {
     return RideTracking(
@@ -187,8 +195,59 @@ class RideTracking {
           : null,
       eta: json['eta'] != null ? RideEta.fromJson(json['eta'] as Map<String, dynamic>) : null,
       distanceM: json['distanceM'] as int?,
+      etaSource: json['etaSource'] as String?,
+      pollIntervalMs: json['pollIntervalMs'] as int?,
+      locationStale: json['locationStale'] as bool? ?? false,
+      route: json['route'] != null
+          ? ActiveRouteTracking.fromJson(json['route'] as Map<String, dynamic>)
+          : null,
     );
   }
+}
+
+class ActiveRouteTracking {
+  const ActiveRouteTracking({
+    required this.etaSeconds,
+    required this.distanceM,
+    this.routePolyline,
+    this.deviationM,
+    this.strategy,
+  });
+
+  final int etaSeconds;
+  final int distanceM;
+  final Map<String, dynamic>? routePolyline;
+  final double? deviationM;
+  final String? strategy;
+
+  List<LatLngPoint> get polylinePoints {
+    final geometry = routePolyline;
+    if (geometry == null) return [];
+    final coords = geometry['coordinates'] as List<dynamic>?;
+    if (coords == null) return [];
+    return coords
+        .map((c) {
+          final pair = c as List<dynamic>;
+          return LatLngPoint((pair[1] as num).toDouble(), (pair[0] as num).toDouble());
+        })
+        .toList();
+  }
+
+  factory ActiveRouteTracking.fromJson(Map<String, dynamic> json) {
+    return ActiveRouteTracking(
+      etaSeconds: json['etaSeconds'] as int? ?? 0,
+      distanceM: json['distanceM'] as int? ?? 0,
+      routePolyline: json['routePolyline'] as Map<String, dynamic>?,
+      deviationM: (json['deviationM'] as num?)?.toDouble(),
+      strategy: json['strategy'] as String?,
+    );
+  }
+}
+
+class LatLngPoint {
+  const LatLngPoint(this.lat, this.lng);
+  final double lat;
+  final double lng;
 }
 
 class RideDetail {

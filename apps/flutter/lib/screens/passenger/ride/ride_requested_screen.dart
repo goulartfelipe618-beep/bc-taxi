@@ -41,7 +41,9 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   late final PaymentService _paymentService = PaymentService(ApiClient(widget.token));
   late final RealtimeService _realtime = RealtimeService(token: widget.token);
   Timer? _pollTimer;
+  Timer? _trackingTimer;
   RideDetail? _detail;
+  RideTracking? _liveTracking;
   PaymentIntent? _payment;
   DriverLocation? _liveDriverLocation;
   DateTime? _lastLocationUiUpdate;
@@ -51,7 +53,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   bool _verifying = false;
 
   RideRecord? get _ride => _detail?.ride;
-  RideTracking? get _tracking => _detail?.tracking;
+  RideTracking? get _tracking => _liveTracking ?? _detail?.tracking;
   DriverLocation? get _driverLocation => _liveDriverLocation ?? _tracking?.driverLocation;
 
   @override
@@ -64,6 +66,34 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
     _realtime.subscribeRide(widget.rideId);
     _poll();
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => _poll());
+    _scheduleTrackingPoll(5000);
+  }
+
+  void _scheduleTrackingPoll(int delayMs) {
+    _trackingTimer?.cancel();
+    _trackingTimer = Timer(Duration(milliseconds: delayMs), () async {
+      await _pollTracking();
+    });
+  }
+
+  Future<void> _pollTracking() async {
+    final ride = _ride;
+    if (ride == null || !['DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].contains(ride.status)) {
+      return;
+    }
+    try {
+      final tracking = await _rideService.fetchTracking(widget.rideId);
+      if (!mounted) return;
+      setState(() {
+        _liveTracking = tracking;
+        if (tracking.driverLocation != null) {
+          _liveDriverLocation = tracking.driverLocation;
+        }
+      });
+      _scheduleTrackingPoll(tracking.pollIntervalMs ?? 5000);
+    } catch (_) {
+      _scheduleTrackingPoll(8000);
+    }
   }
 
   void _onRealtimeEvent(Map<String, dynamic> event) {
@@ -78,7 +108,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
       if (lat is num && lng is num) {
         final now = DateTime.now();
         if (_lastLocationUiUpdate != null &&
-            now.difference(_lastLocationUiUpdate!) < const Duration(seconds: 8)) {
+            now.difference(_lastLocationUiUpdate!) < const Duration(seconds: 3)) {
           return;
         }
         _lastLocationUiUpdate = now;
@@ -126,6 +156,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _trackingTimer?.cancel();
     _realtime.removeListener(_onRealtimeEvent);
     _realtime.disconnect();
     _codeController.dispose();
@@ -161,6 +192,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
       });
       if (detail.ride.isTerminal) {
         _pollTimer?.cancel();
+        _trackingTimer?.cancel();
         if (detail.ride.status == 'COMPLETED' && !_reviewShown) {
           _reviewShown = true;
           _showReview();
@@ -273,7 +305,11 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: SizedBox(
                   height: 220,
-                  child: RideTrackingMap(ride: ride!, driverLocation: _driverLocation),
+                  child: RideTrackingMap(
+                    ride: ride!,
+                    driverLocation: _driverLocation,
+                    routePolyline: tracking?.route?.polylinePoints ?? const [],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),

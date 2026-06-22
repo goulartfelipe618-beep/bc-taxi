@@ -63,6 +63,14 @@ import {
   getRideCompletionProduction,
   toPublicRideCompletionProduction,
 } from '../ride/rideCompletionProductionService.js';
+import {
+  getRideCancellationProduction,
+  parseCancellationReasonCode,
+  previewRideCancellation,
+  recordCancellationProductionSnapshot,
+  toPublicCancellationPreview,
+  toPublicRideCancellationProduction,
+} from '../ride/rideCancellationProductionService.js';
 import { resolveDriverActiveRideId } from '../ride/rideTrackingService.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
@@ -625,6 +633,8 @@ ridesRouter.get('/:id', async (req, res) => {
     ride.status === 'COMPLETED'
       ? await getRideCompletionProduction(ride, req.user!.id)
       : null;
+  const cancellation =
+    ride.status === 'CANCELLED' ? await getRideCancellationProduction(ride) : null;
   let startCodes: { yours: string; partner: string } | undefined;
   let payment: ReturnType<typeof toPublicPaymentIntent> | undefined;
   if (ride.paymentIntentId) {
@@ -652,6 +662,7 @@ ridesRouter.get('/:id', async (req, res) => {
     ...(tracking ? { tracking: toPublicRideTrackingProduction(tracking) } : {}),
     ...(lifecycle ? { lifecycle: toPublicRideLifecycleProduction(lifecycle) } : {}),
     ...(completion ? { completion: toPublicRideCompletionProduction(completion) } : {}),
+    ...(cancellation ? { cancellation: toPublicRideCancellationProduction(cancellation) } : {}),
     ...(startCodes ? { startCodes } : {}),
   });
 });
@@ -752,30 +763,89 @@ ridesRouter.post('/:id/route/recalculate', async (req, res) => {
   }
 });
 
+ridesRouter.get('/:id/cancel-preview', async (req, res) => {
+  const ride = await getRide(req.params.id);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada' });
+    return;
+  }
+  if (ride.passengerId !== req.user!.id && ride.driverId !== req.user!.id) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+
+  const actor =
+    req.user!.id === ride.driverId
+      ? ('driver' as const)
+      : req.user!.id === ride.passengerId
+        ? ('passenger' as const)
+        : null;
+  if (!actor) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+
+  const reasonCode = parseCancellationReasonCode(req.query.reasonCode);
+  const preview = await previewRideCancellation({ ride, actor, reasonCode });
+  res.json({ preview: toPublicCancellationPreview(preview) });
+});
+
 ridesRouter.post('/:id/cancel', async (req, res) => {
   const existing = await getRide(req.params.id);
   if (!existing || existing.passengerId !== req.user!.id) {
     res.status(404).json({ error: 'Corrida não encontrada ou não cancelável' });
     return;
   }
-  const priorStatus = existing.status;
-  const cancelPolicy = await assessPassengerCancellationPolicy(existing, priorStatus);
 
+  const reasonCode = parseCancellationReasonCode(req.body?.reasonCode);
+  const preview = await previewRideCancellation({
+    ride: existing,
+    actor: 'passenger',
+    reasonCode,
+  });
+  if (!preview.canCancel) {
+    res.status(409).json({ error: 'Cancelamento não permitido para o status atual', preview });
+    return;
+  }
+
+  const priorStatus = existing.status;
   const ride = await cancelRide(req.params.id, req.user!.id, req.body?.reason);
   if (!ride) {
     res.status(404).json({ error: 'Corrida não encontrada ou não cancelável' });
     return;
   }
 
-  if (cancelPolicy.feeCentavos > 0) {
+  if (!preview.feeWaived && preview.feeCentavos > 0) {
+    const cancelPolicy = await assessPassengerCancellationPolicy(existing, priorStatus);
     await settleCancelPolicyFee(ride.id, cancelPolicy.feeCentavos);
   } else {
     await cancelRidePayment(ride.id);
   }
 
+  await recordCancellationProductionSnapshot({
+    rideId: ride.id,
+    cancelledBy: 'passenger',
+    priorStatus,
+    feeCentavos: preview.feeCentavos,
+    feeWaived: preview.feeWaived,
+    reasonCode,
+    reputationImpact: false,
+    policyVersion: preview.policyVersion,
+  });
+
   res.json({
     ride: toPublicRide(ride),
-    cancellationFeeCentavos: cancelPolicy.feeCentavos,
+    cancellationFeeCentavos: preview.feeCentavos,
+    cancellation: toPublicRideCancellationProduction({
+      cancelledBy: 'passenger',
+      priorStatus,
+      feeCentavos: preview.feeCentavos,
+      feeLabel: preview.feeLabel,
+      feeWaived: preview.feeWaived,
+      reasonCode,
+      reputationImpact: false,
+      configVersion: preview.configVersion,
+    }),
   });
 });
 
@@ -785,6 +855,24 @@ ridesRouter.post('/:id/driver-cancel', async (req, res) => {
     return;
   }
 
+  const existing = await getRide(req.params.id);
+  if (!existing || existing.driverId !== req.user!.id) {
+    res.status(404).json({ error: 'Corrida não encontrada ou não cancelável pelo motorista' });
+    return;
+  }
+
+  const reasonCode = parseCancellationReasonCode(req.body?.reasonCode);
+  const preview = await previewRideCancellation({
+    ride: existing,
+    actor: 'driver',
+    reasonCode,
+  });
+  if (!preview.canCancel) {
+    res.status(409).json({ error: 'Cancelamento não permitido para o status atual', preview });
+    return;
+  }
+
+  const priorStatus = existing.status;
   const ride = await driverCancelRide(req.params.id, req.user!.id, req.body?.reason);
   if (!ride) {
     res.status(404).json({ error: 'Corrida não encontrada ou não cancelável pelo motorista' });
@@ -795,11 +883,35 @@ ridesRouter.post('/:id/driver-cancel', async (req, res) => {
     userId: req.user!.id,
     rideId: ride.id,
     signalType: 'RAPID_CANCEL',
-    metadata: { cancelledBy: 'driver' },
+    metadata: { cancelledBy: 'driver', reputationImpact: preview.reputationImpact },
   }).catch(() => undefined);
 
   await cancelRidePayment(ride.id);
-  res.json({ ride: toPublicRide(ride) });
+
+  await recordCancellationProductionSnapshot({
+    rideId: ride.id,
+    cancelledBy: 'driver',
+    priorStatus,
+    feeCentavos: 0,
+    feeWaived: true,
+    reasonCode,
+    reputationImpact: preview.reputationImpact,
+    policyVersion: preview.policyVersion,
+  });
+
+  res.json({
+    ride: toPublicRide(ride),
+    cancellation: toPublicRideCancellationProduction({
+      cancelledBy: 'driver',
+      priorStatus,
+      feeCentavos: 0,
+      feeLabel: preview.feeLabel,
+      feeWaived: true,
+      reasonCode,
+      reputationImpact: preview.reputationImpact,
+      configVersion: preview.configVersion,
+    }),
+  });
 });
 
 ridesRouter.post('/:id/arrived', async (req, res) => {

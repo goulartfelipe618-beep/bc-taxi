@@ -249,6 +249,33 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
 
   Future<void> _cancel() async {
     try {
+      final preview = await _rideService.fetchCancelPreview(widget.rideId);
+      if (!preview.canCancel) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cancelamento não disponível neste momento')),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cancelar corrida?'),
+          content: Text(
+            preview.feeWaived
+                ? 'Não há taxa de cancelamento.'
+                : 'Taxa de cancelamento: ${preview.feeLabel}',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Voltar')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmar')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
       await _rideService.cancelRide(widget.rideId);
       if (!mounted) return;
       Navigator.of(context).popUntil((r) => r.isFirst);

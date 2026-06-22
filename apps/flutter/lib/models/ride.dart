@@ -365,6 +365,58 @@ class RideCompletion {
   }
 }
 
+class CancellationPreview {
+  const CancellationPreview({
+    required this.canCancel,
+    required this.feeCentavos,
+    required this.feeLabel,
+    required this.feeWaived,
+    this.freeWindowRemainingSeconds,
+  });
+
+  final bool canCancel;
+  final int feeCentavos;
+  final String feeLabel;
+  final bool feeWaived;
+  final int? freeWindowRemainingSeconds;
+
+  factory CancellationPreview.fromJson(Map<String, dynamic> json) {
+    return CancellationPreview(
+      canCancel: json['canCancel'] as bool? ?? false,
+      feeCentavos: json['feeCentavos'] as int? ?? 0,
+      feeLabel: json['feeLabel'] as String? ?? '',
+      feeWaived: json['feeWaived'] as bool? ?? true,
+      freeWindowRemainingSeconds: json['freeWindowRemainingSeconds'] as int?,
+    );
+  }
+}
+
+class RideCancellation {
+  const RideCancellation({
+    required this.cancelledBy,
+    required this.feeCentavos,
+    required this.feeLabel,
+    required this.feeWaived,
+    required this.reputationImpact,
+  });
+
+  final String cancelledBy;
+  final int feeCentavos;
+  final String feeLabel;
+  final bool feeWaived;
+  final bool reputationImpact;
+
+  factory RideCancellation.fromJson(Map<String, dynamic> json) {
+    return RideCancellation(
+      cancelledBy: json['cancelledBy'] as String? ?? '',
+      feeCentavos: json['feeCentavos'] as int? ?? 0,
+      feeLabel: json['feeLabel'] as String? ?? '',
+      feeWaived: json['feeWaived'] as bool? ?? true,
+      reputationImpact: json['reputationImpact'] as bool? ?? false,
+    );
+  }
+}
+
 class RideDetail {
   const RideDetail({
     required this.ride,
@@ -373,6 +425,7 @@ class RideDetail {
     this.tracking,
     this.lifecycle,
     this.completion,
+    this.cancellation,
     this.payment,
   });
 
@@ -382,6 +435,7 @@ class RideDetail {
   final RideTracking? tracking;
   final RideLifecycle? lifecycle;
   final RideCompletion? completion;
+  final RideCancellation? cancellation;
   final PaymentIntent? payment;
 
   factory RideDetail.fromJson(Map<String, dynamic> json) {
@@ -401,6 +455,9 @@ class RideDetail {
           : null,
       completion: json['completion'] != null
           ? RideCompletion.fromJson(json['completion'] as Map<String, dynamic>)
+          : null,
+      cancellation: json['cancellation'] != null
+          ? RideCancellation.fromJson(json['cancellation'] as Map<String, dynamic>)
           : null,
       payment: json['payment'] != null
           ? PaymentIntent.fromJson(json['payment'] as Map<String, dynamic>)

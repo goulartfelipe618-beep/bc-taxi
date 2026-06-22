@@ -78,9 +78,18 @@ class RideService {
     return RideDetail.fromJson(data);
   }
 
-  Future<RideRecord> cancelRide(String rideId, {String? reason}) async {
+  Future<CancellationPreview> fetchCancelPreview(String rideId, {String? reasonCode}) async {
+    final query = reasonCode != null ? '?reasonCode=$reasonCode' : '';
+    final res = await _client.get('/v1/rides/$rideId/cancel-preview$query');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return CancellationPreview.fromJson(data['preview'] as Map<String, dynamic>);
+  }
+
+  Future<RideRecord> cancelRide(String rideId, {String? reason, String? reasonCode}) async {
     final res = await _client.post('/v1/rides/$rideId/cancel', body: {
       if (reason != null) 'reason': reason,
+      if (reasonCode != null) 'reasonCode': reasonCode,
     });
     final data = _client.decodeJson(res);
     _client.throwIfError(res, data);

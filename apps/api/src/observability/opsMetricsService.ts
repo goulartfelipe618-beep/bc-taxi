@@ -275,6 +275,16 @@ export function startOpsMetricsJanitor() {
       const { runFullOpsAlertEvaluation } = await import('./opsAlertService.js');
       const metrics = await aggregateHourlyMetrics();
       const health = await capturePlatformHealthSnapshot();
+      if (metrics) {
+        const { captureSloSnapshot } = await import('./observabilityProductionService.js');
+        const { config: appConfig } = await import('../config.js');
+        await captureSloSnapshot({
+          metrics,
+          regionId: appConfig.defaultServiceRegionId,
+          categoryCode: 'economico',
+          reputationTier: 'all',
+        });
+      }
       await runFullOpsAlertEvaluation({ metrics, health });
     })();
   };

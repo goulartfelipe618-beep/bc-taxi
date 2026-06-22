@@ -14,6 +14,9 @@ async function main() {
     getOpsDashboard,
     __testResetAlertMemory,
   } = await import('../src/observability/opsAlertService.js');
+  const { evaluateProductionHealthAlerts } = await import(
+    '../src/observability/observabilityProductionService.js'
+  );
   const {
     generateTraceId,
     recordTraceSpan,
@@ -43,7 +46,9 @@ async function main() {
   const seeded = await import('../src/observability/platformHealthService.js').then((m) =>
     m.getLatestPlatformHealth(),
   );
-  const alerts = await evaluatePlatformHealthAlerts(seeded);
+  const wsAlerts = await evaluatePlatformHealthAlerts(seeded);
+  const prodHealthAlerts = await evaluateProductionHealthAlerts(seeded);
+  const alerts = [...wsAlerts, ...prodHealthAlerts];
   if (alerts.length < 2) throw new Error(`Expected platform alerts, got ${alerts.length}`);
   console.log(
     'Platform alerts:',

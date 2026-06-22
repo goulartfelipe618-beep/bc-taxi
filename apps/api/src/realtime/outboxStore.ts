@@ -45,7 +45,7 @@ export function buildEvent<T extends Record<string, unknown>>(
   aggregateType: string,
   aggregateId: string,
   payload: T,
-  opts?: { idempotencyKey?: string; userIds?: string[]; rideId?: string; driverId?: string },
+  opts?: { idempotencyKey?: string; traceId?: string; userIds?: string[]; rideId?: string; driverId?: string },
 ): RealtimeEvent<T> {
   return {
     eventId: randomUUID(),
@@ -56,6 +56,7 @@ export function buildEvent<T extends Record<string, unknown>>(
     producer: 'core-node',
     schemaVersion: 1,
     idempotencyKey: opts?.idempotencyKey,
+    traceId: opts?.traceId,
     payload,
     userIds: opts?.userIds,
     rideId: opts?.rideId,

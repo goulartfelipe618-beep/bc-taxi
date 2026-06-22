@@ -4,15 +4,12 @@ import { pool } from '../db.js';
 import { useMemory } from '../stores/memoryMatchStore.js';
 import type { PlatformHealthSnapshot } from './platformHealthService.js';
 import {
-  evaluateOpsAlerts,
   getLatestMetrics,
   listOpenOpsAlerts,
   type OpsAlert,
   type OpsMetricsSnapshot,
 } from './opsMetricsService.js';
 
-const ROUTE_RECALC_SPIKE_THRESHOLD = 25;
-const FRAUD_SPIKE_THRESHOLD = 12;
 const WS_DEGRADATION_MIN_ACTIVE_RIDES = 3;
 
 const memoryExtendedAlerts: OpsAlert[] = [];
@@ -82,30 +79,6 @@ export async function evaluatePlatformHealthAlerts(health: PlatformHealthSnapsho
     if (alert) created.push(alert);
   }
 
-  if (health.routeRecalcCount15m > ROUTE_RECALC_SPIKE_THRESHOLD) {
-    const alert = await createAlert({
-      alertType: 'route_recalc_spike',
-      severity: 'warning',
-      summary: 'Pico de recálculos de rota nos últimos 15 minutos',
-      metricValue: health.routeRecalcCount15m,
-      thresholdValue: ROUTE_RECALC_SPIKE_THRESHOLD,
-      component: 'route',
-    });
-    if (alert) created.push(alert);
-  }
-
-  if (health.fraudSignalCount15m > FRAUD_SPIKE_THRESHOLD) {
-    const alert = await createAlert({
-      alertType: 'fraud_signal_spike',
-      severity: 'critical',
-      summary: 'Pico de sinais de fraude nos últimos 15 minutos',
-      metricValue: health.fraudSignalCount15m,
-      thresholdValue: FRAUD_SPIKE_THRESHOLD,
-      component: 'fraud',
-    });
-    if (alert) created.push(alert);
-  }
-
   if (configRedisDegraded(health)) {
     const alert = await createAlert({
       alertType: 'redis_disconnected',
@@ -130,9 +103,15 @@ export async function runFullOpsAlertEvaluation(input?: {
   health?: PlatformHealthSnapshot | null;
 }) {
   const metrics = input?.metrics ?? (await getLatestMetrics());
-  const baseAlerts = await evaluateOpsAlerts(metrics);
-  const healthAlerts = await evaluatePlatformHealthAlerts(input?.health ?? null);
-  return [...baseAlerts, ...healthAlerts];
+  const health = input?.health ?? null;
+  const {
+    evaluateProductionMetricAlerts,
+    evaluateProductionHealthAlerts,
+  } = await import('./observabilityProductionService.js');
+  const metricAlerts = await evaluateProductionMetricAlerts(metrics);
+  const prodHealthAlerts = await evaluateProductionHealthAlerts(health);
+  const platformAlerts = await evaluatePlatformHealthAlerts(health);
+  return [...metricAlerts, ...prodHealthAlerts, ...platformAlerts];
 }
 
 export async function acknowledgeOpsAlert(alertId: string, userId: string) {

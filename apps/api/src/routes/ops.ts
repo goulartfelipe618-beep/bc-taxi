@@ -4,7 +4,11 @@ import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import { getOpsDashboard, acknowledgeOpsAlert, resolveOpsAlert } from '../observability/opsAlertService.js';
 import { capturePlatformHealthSnapshot, getLatestPlatformHealth } from '../observability/platformHealthService.js';
 import { getLatestMetrics, listOpenOpsAlerts } from '../observability/opsMetricsService.js';
-import { getRideTraceBundle } from '../observability/traceService.js';
+import {
+  getObservabilityProductionConfig,
+  listSloSnapshots,
+} from '../observability/observabilityProductionService.js';
+import { getRideTraceBundle, getTraceBundleByTraceId } from '../observability/traceService.js';
 import { wsHub } from '../realtime/wsHub.js';
 import { config } from '../config.js';
 
@@ -39,8 +43,28 @@ opsRouter.get('/alerts', async (_req, res) => {
   res.json({ alerts });
 });
 
+opsRouter.get('/config', async (_req, res) => {
+  const cfg = await getObservabilityProductionConfig();
+  res.json({ observability: cfg });
+});
+
+opsRouter.get('/slo', async (req, res) => {
+  const snapshots = await listSloSnapshots({
+    regionId: typeof req.query.regionId === 'string' ? req.query.regionId : undefined,
+    categoryCode: typeof req.query.categoryCode === 'string' ? req.query.categoryCode : undefined,
+    reputationTier: typeof req.query.reputationTier === 'string' ? req.query.reputationTier : undefined,
+    limit: req.query.limit ? Number(req.query.limit) : 20,
+  });
+  res.json({ snapshots });
+});
+
 opsRouter.get('/traces/:rideId', authMiddleware, async (req, res) => {
   const bundle = await getRideTraceBundle(req.params.rideId);
+  res.json(bundle);
+});
+
+opsRouter.get('/traces/by-trace/:traceId', authMiddleware, async (req, res) => {
+  const bundle = await getTraceBundleByTraceId(req.params.traceId);
   res.json(bundle);
 });
 

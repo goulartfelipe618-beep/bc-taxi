@@ -297,6 +297,7 @@ ridesRouter.post('/', async (req, res) => {
         dropoffLng: parsed.data.dropoffLng,
         hasLargeBaggage: parsed.data.hasLargeBaggage,
         passengerId: req.user!.id,
+        reputationScore: passengerRepScore,
       });
       estimatedFareCentavos = sharedQuoteResult.finalFareCentavos;
     } catch (e) {
@@ -554,6 +555,7 @@ ridesRouter.post('/', async (req, res) => {
       hasLargeBaggage: parsed.data.hasLargeBaggage,
       distanceKm: parsed.data.distanceKm,
       durationMin: parsed.data.durationMin,
+      reputationScore: passengerRepScore,
     });
     estimatedFareCentavos = shared.booking.finalFareCentavos;
     sharedPoolPayload = toPublicPool(shared.pool, await getPoolBookings(shared.pool.id));

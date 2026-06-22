@@ -4,10 +4,12 @@ import { authMiddleware } from '../middleware/auth.js';
 import {
   getPool,
   getPoolBookings,
+  getCorridorConfig,
   quoteSharedRide,
   toPublicPool,
   toPublicSharedQuote,
 } from '../shared/sharedRideService.js';
+import { getSharedProductionConfig } from '../shared/sharedProductionService.js';
 
 export const sharedRouter = Router();
 
@@ -50,12 +52,13 @@ sharedRouter.get('/pools/:id', authMiddleware, async (req, res) => {
 });
 
 sharedRouter.get('/config', async (_req, res) => {
+  const corridor = await getCorridorConfig();
+  const prod = await getSharedProductionConfig();
   res.json({
-    maxBookingsPerPool: 2,
-    maxWaitMin: 3,
-    maxDetourMin: 12,
-    maxPickupRadiusKm: 2.5,
-    maxDropoffRadiusKm: 3.0,
+    ...corridor,
+    minPassengerReputation: prod.minPassengerReputation,
+    marginalRateCentavosKm: prod.marginalRateCentavosKm,
+    configVersion: prod.configVersion,
     detourDiscountRange: { min: 0.05, max: 0.18 },
     driverOccupancyBonus: 1.04,
   });

@@ -1,34 +1,22 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { pool } from '../db.js';
-import { haversineKm } from '../mapbox/mockPlaces.js';
 import { buildEngineQuote } from '../pricing/pricingEngineService.js';
 import { startMatching } from '../match/matchService.js';
+import {
+  areRoutesCompatible,
+  computeDetourDiscount,
+  estimateDetourBetween,
+  type SharedCorridorConfig,
+} from './sharedRideCorridor.js';
+import {
+  applyMarginalFaresToPool,
+  assertSharedPassengerEligible,
+  assertSharedTemporalWindow,
+  recordSharedPoolEvent,
+} from './sharedProductionService.js';
 
-export type SharedPoolStatus =
-  | 'waiting'
-  | 'ready'
-  | 'matching'
-  | 'assigned'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled';
-
-export interface SharedCorridorConfig {
-  maxPickupRadiusKm: number;
-  maxDropoffRadiusKm: number;
-  maxBearingDiffDeg: number;
-  maxDetourMin: number;
-  maxWaitMin: number;
-  maxBookingsPerPool: number;
-}
-
-export interface SharedRoutePoint {
-  pickupLat: number;
-  pickupLng: number;
-  dropoffLat: number;
-  dropoffLng: number;
-}
+export type { SharedCorridorConfig, SharedRoutePoint };
 
 export interface SharedRidePool {
   id: string;
@@ -59,6 +47,7 @@ export interface SharedRideBooking {
   finalFareCentavos: number;
   detourKm: number;
   detourMin: number;
+  marginalFareCentavos?: number;
   status: string;
 }
 
@@ -75,6 +64,15 @@ export interface SharedQuoteResult {
   soloRide: boolean;
 }
 
+export type SharedPoolStatus =
+  | 'waiting'
+  | 'ready'
+  | 'matching'
+  | 'assigned'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled';
+
 const DEFAULT_CORRIDOR: SharedCorridorConfig = {
   maxPickupRadiusKm: 2.5,
   maxDropoffRadiusKm: 3.0,
@@ -87,85 +85,9 @@ const DEFAULT_CORRIDOR: SharedCorridorConfig = {
 const memoryPools: SharedRidePool[] = [];
 const memoryBookings: SharedRideBooking[] = [];
 
-function toRad(deg: number) {
-  return (deg * Math.PI) / 180;
-}
+export { areRoutesCompatible, computeDetourDiscount } from './sharedRideCorridor.js';
 
-function routeBearing(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
-  const lat1 = toRad(fromLat);
-  const lat2 = toRad(toLat);
-  const dLng = toRad(toLng - fromLng);
-  const y = Math.sin(dLng) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-
-function bearingDiff(a: number, b: number): number {
-  const d = Math.abs(a - b) % 360;
-  return d > 180 ? 360 - d : d;
-}
-
-function estimateRouteKm(a: SharedRoutePoint): number {
-  return haversineKm(a.pickupLat, a.pickupLng, a.dropoffLat, a.dropoffLng) * 1.35;
-}
-
-function estimateCombinedKm(a: SharedRoutePoint, b: SharedRoutePoint): number {
-  const leg1 = haversineKm(a.pickupLat, a.pickupLng, b.pickupLat, b.pickupLng);
-  const leg2 = haversineKm(b.pickupLat, b.pickupLng, a.dropoffLat, a.dropoffLng);
-  const leg3 = haversineKm(a.dropoffLat, a.dropoffLng, b.dropoffLat, b.dropoffLng);
-  return (leg1 + leg2 + leg3) * 1.35;
-}
-
-function estimateDetour(a: SharedRoutePoint, b: SharedRoutePoint): { detourKm: number; detourMin: number } {
-  const directA = estimateRouteKm(a);
-  const directB = estimateRouteKm(b);
-  const combined = estimateCombinedKm(a, b);
-  const detourKm = Math.max(0, combined - directA - directB);
-  const detourMin = (detourKm / 30) * 60;
-  return { detourKm: Math.round(detourKm * 100) / 100, detourMin: Math.round(detourMin * 10) / 10 };
-}
-
-export function computeDetourDiscount(baseFareCentavos: number, detourMin: number, maxDetourMin: number): number {
-  const ratio = Math.min(1, Math.max(0, detourMin / maxDetourMin));
-  const discountRate = 0.05 + ratio * 0.13;
-  return Math.round(baseFareCentavos * discountRate);
-}
-
-export function areRoutesCompatible(
-  a: SharedRoutePoint,
-  b: SharedRoutePoint,
-  cfg: SharedCorridorConfig = DEFAULT_CORRIDOR,
-  opts?: { hasLargeBaggageA?: boolean; hasLargeBaggageB?: boolean },
-): { compatible: boolean; reason?: string; detourKm: number; detourMin: number } {
-  if (opts?.hasLargeBaggageA || opts?.hasLargeBaggageB) {
-    return { compatible: false, reason: 'Bagagem grande bloqueia compartilhamento', detourKm: 0, detourMin: 0 };
-  }
-
-  const pickupDist = haversineKm(a.pickupLat, a.pickupLng, b.pickupLat, b.pickupLng);
-  if (pickupDist > cfg.maxPickupRadiusKm) {
-    return { compatible: false, reason: 'Origens muito distantes para compartilhar', detourKm: 0, detourMin: 0 };
-  }
-
-  const dropoffDist = haversineKm(a.dropoffLat, a.dropoffLng, b.dropoffLat, b.dropoffLng);
-  if (dropoffDist > cfg.maxDropoffRadiusKm) {
-    return { compatible: false, reason: 'Destinos muito distantes para compartilhar', detourKm: 0, detourMin: 0 };
-  }
-
-  const bearingA = routeBearing(a.pickupLat, a.pickupLng, a.dropoffLat, a.dropoffLng);
-  const bearingB = routeBearing(b.pickupLat, b.pickupLng, b.dropoffLat, b.dropoffLng);
-  if (bearingDiff(bearingA, bearingB) > cfg.maxBearingDiffDeg) {
-    return { compatible: false, reason: 'Rotas em direções incompatíveis', detourKm: 0, detourMin: 0 };
-  }
-
-  const { detourKm, detourMin } = estimateDetour(a, b);
-  if (detourMin > cfg.maxDetourMin) {
-    return { compatible: false, reason: 'Desvio acima do limite operacional', detourKm, detourMin };
-  }
-
-  return { compatible: true, detourKm, detourMin };
-}
-
-async function getCorridorConfig(): Promise<SharedCorridorConfig> {
+export async function getCorridorConfig(): Promise<SharedCorridorConfig> {
   if (config.useMemoryDb) return DEFAULT_CORRIDOR;
   const { rows } = await pool.query(
     `SELECT * FROM shared_corridor_config WHERE is_active = TRUE ORDER BY created_at DESC LIMIT 1`,
@@ -287,10 +209,16 @@ export async function quoteSharedRide(input: {
   dropoffLng: number;
   hasLargeBaggage?: boolean;
   passengerId?: string;
+  reputationScore?: number;
 }): Promise<SharedQuoteResult> {
   if (input.hasLargeBaggage) {
     throw new Error('Bagagem grande não é permitida em viagem compartilhada');
   }
+
+  if (input.reputationScore != null) {
+    await assertSharedPassengerEligible(input.reputationScore);
+  }
+  await assertSharedTemporalWindow();
 
   const baseQuote = await buildEngineQuote({
     categoryCode: 'compartilhado',
@@ -465,10 +393,16 @@ export async function registerSharedBooking(input: {
   hasLargeBaggage?: boolean;
   distanceKm: number;
   durationMin: number;
+  reputationScore?: number;
 }): Promise<{ pool: SharedRidePool; booking: SharedRideBooking; sharedQuote: SharedQuoteResult }> {
   if (input.hasLargeBaggage) {
     throw new Error('Bagagem grande não é permitida em viagem compartilhada');
   }
+
+  const eligibility = input.reputationScore != null
+    ? await assertSharedPassengerEligible(input.reputationScore)
+    : undefined;
+  await assertSharedTemporalWindow();
 
   const cfg = await getCorridorConfig();
   const route: SharedRoutePoint = {
@@ -481,6 +415,7 @@ export async function registerSharedBooking(input: {
   const sharedQuote = await quoteSharedRide({
     ...input,
     passengerId: input.passengerId,
+    reputationScore: input.reputationScore,
   });
 
   let pool: SharedRidePool;
@@ -519,42 +454,18 @@ export async function registerSharedBooking(input: {
   const updatedPool = (await getPool(pool.id)) ?? pool;
 
   if (updatedPool.bookingCount >= updatedPool.maxBookings) {
-    await recalculatePoolFares(updatedPool.id);
+    await applyMarginalFaresToPool(updatedPool.id);
+    await recordSharedPoolEvent(updatedPool.id, 'pool_ready', eligibility?.configVersion ?? 'camada37', {
+      bookingCount: updatedPool.bookingCount,
+    });
     await markPoolReady(updatedPool.id);
+  } else {
+    await recordSharedPoolEvent(pool.id, 'booking_joined', eligibility?.configVersion ?? 'camada37', {
+      rideId: input.rideId,
+    });
   }
 
   return { pool: (await getPool(pool.id)) ?? updatedPool, booking, sharedQuote };
-}
-
-async function recalculatePoolFares(poolId: string) {
-  const bookings = await getPoolBookings(poolId);
-  if (bookings.length < 2) return;
-  const cfg = await getCorridorConfig();
-  const [a, b] = bookings;
-  const compat = areRoutesCompatible(
-    { pickupLat: a.pickupLat, pickupLng: a.pickupLng, dropoffLat: a.dropoffLat, dropoffLng: a.dropoffLng },
-    { pickupLat: b.pickupLat, pickupLng: b.pickupLng, dropoffLat: b.dropoffLat, dropoffLng: b.dropoffLng },
-    cfg,
-  );
-  if (!compat.compatible) return;
-
-  for (const bk of bookings) {
-    const discount = computeDetourDiscount(bk.baseFareCentavos, compat.detourMin, cfg.maxDetourMin);
-    const finalFare = bk.baseFareCentavos - discount;
-    if (config.useMemoryDb) {
-      bk.discountCentavos = discount;
-      bk.finalFareCentavos = finalFare;
-      bk.detourKm = compat.detourKm;
-      bk.detourMin = compat.detourMin;
-    } else {
-      await pool.query(
-        `UPDATE shared_ride_bookings
-         SET discount_centavos = $2, final_fare_centavos = $3, detour_km = $4, detour_min = $5
-         WHERE id = $1`,
-        [bk.id, discount, finalFare, compat.detourKm, compat.detourMin],
-      );
-    }
-  }
 }
 
 async function markPoolReady(poolId: string) {
@@ -626,6 +537,7 @@ export function toPublicPool(p: SharedRidePool, bookings: SharedRideBooking[]) {
       pickupOrder: b.pickupOrder,
       finalFareCentavos: b.finalFareCentavos,
       discountCentavos: b.discountCentavos,
+      marginalFareCentavos: (b as SharedRideBooking & { marginalFareCentavos?: number }).marginalFareCentavos ?? 0,
       detourMin: b.detourMin,
     })),
   };

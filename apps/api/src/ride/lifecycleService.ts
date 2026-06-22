@@ -184,15 +184,22 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
   const { assessArrivalWaitPolicy, markPolicyChargesCaptured } = await import(
     '../config/policyEnforcementService.js'
   );
-  const waitFee = await assessArrivalWaitPolicy(ride);
-  const baseFare = ride.estimatedFareCentavos ?? 0;
-  const amount = baseFare + waitFee.feeCentavos;
+  const {
+    resolveProductionCompletionFare,
+    recordProductionCompletionSnapshot,
+    shouldIssueReceiptOnComplete,
+    shouldOpenReviewObligationsOnComplete,
+  } = await import('./rideCompletionProductionService.js');
+
+  const productionFare = await resolveProductionCompletionFare(ride);
+  const amount = productionFare.totalCentavos;
+  const waitFeeCentavos = productionFare.waitFeeCentavos;
 
   await captureRidePayment(rideId, amount > 0 ? amount : undefined, {
     categoryCode: ride.categoryCode as import('../domain/types.js').RideCategoryCode,
     driverUserId: driverId,
   });
-  if (waitFee.feeCentavos > 0) {
+  if (waitFeeCentavos > 0) {
     await markPolicyChargesCaptured(rideId, 'arrival_wait_fee');
   }
 
@@ -208,15 +215,16 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     quotedFareCentavos: amount,
     snapshotJson: {
       capturedAmountCentavos: amount,
-      baseFareCentavos: baseFare,
-      arrivalWaitFeeCentavos: waitFee.feeCentavos,
+      baseFareCentavos: productionFare.baseFareCentavos,
+      arrivalWaitFeeCentavos: waitFeeCentavos,
+      fareSource: productionFare.fareSource,
       driverId,
     },
   });
 
   await releaseDriver(completed);
 
-  if (completed.driverId) {
+  if (completed.driverId && (await shouldOpenReviewObligationsOnComplete())) {
     await openReviewObligationsForRide({
       rideId: completed.id,
       passengerId: completed.passengerId,
@@ -232,11 +240,17 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     await captureCorporateInvoiceOnRideComplete(rideId, amount);
   }
 
-  const receipt = await issueRideReceipt(completed);
+  let receipt: Awaited<ReturnType<typeof issueRideReceipt>> | null = null;
+  if (await shouldIssueReceiptOnComplete()) {
+    receipt = await issueRideReceipt(completed);
+  }
+  await recordProductionCompletionSnapshot(completed, productionFare, receipt?.id);
+
   void emitEvent('RIDE_COMPLETED', 'ride', rideId, {
     fareCentavos: amount,
-    receiptId: receipt.id,
-    receiptNumber: receipt.receiptNumber,
+    receiptId: receipt?.id,
+    receiptNumber: receipt?.receiptNumber,
+    fareSource: productionFare.fareSource,
   }, {
     rideId,
     userIds: [completed.passengerId],

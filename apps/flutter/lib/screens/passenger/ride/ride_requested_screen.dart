@@ -365,6 +365,11 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
                     if (tracking != null) _driverCard(tracking),
                     const SizedBox(height: 16),
                     if (ride != null) _buildStatusCard(ride, tracking),
+                    if (ride?.status == 'COMPLETED' && _detail?.completion != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: _completionSummaryCard(_detail!.completion!),
+                      ),
                   ],
                 ),
               ),
@@ -484,6 +489,42 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
           Text(_cardTitle(ride.status), style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
           Text(_cardValue(ride, tracking), style: PassengerTheme.titleMedium.copyWith(fontSize: 28)),
+        ],
+      ),
+    );
+  }
+
+  Widget _completionSummaryCard(RideCompletion completion) {
+    final fare = completion.fare;
+    final sourceLabel = switch (fare.fareSource) {
+      'actual_route' => 'Tarifa pela rota real',
+      'blended' => 'Tarifa ajustada',
+      _ => 'Tarifa estimada',
+    };
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: BcColors.grayLight, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(sourceLabel, style: PassengerTheme.caption, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(fare.totalLabel, style: PassengerTheme.titleMedium.copyWith(fontSize: 32), textAlign: TextAlign.center),
+          if (fare.waitFeeCentavos > 0)
+            Text(
+              'Inclui taxa de espera',
+              style: PassengerTheme.caption,
+              textAlign: TextAlign.center,
+            ),
+          if (completion.reviewPending)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                'Avalie o motorista para concluir',
+                style: PassengerTheme.caption.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+            ),
         ],
       ),
     );

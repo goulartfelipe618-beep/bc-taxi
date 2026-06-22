@@ -310,6 +310,61 @@ class LatLngPoint {
   final double lng;
 }
 
+class RideCompletionFare {
+  const RideCompletionFare({
+    required this.baseFareCentavos,
+    required this.waitFeeCentavos,
+    required this.totalCentavos,
+    required this.totalLabel,
+    required this.fareSource,
+    this.routeDistanceM,
+    this.tripDurationS,
+  });
+
+  final int baseFareCentavos;
+  final int waitFeeCentavos;
+  final int totalCentavos;
+  final String totalLabel;
+  final String fareSource;
+  final int? routeDistanceM;
+  final int? tripDurationS;
+
+  factory RideCompletionFare.fromJson(Map<String, dynamic> json) {
+    return RideCompletionFare(
+      baseFareCentavos: json['baseFareCentavos'] as int? ?? 0,
+      waitFeeCentavos: json['waitFeeCentavos'] as int? ?? 0,
+      totalCentavos: json['totalCentavos'] as int? ?? 0,
+      totalLabel: json['totalLabel'] as String? ?? '',
+      fareSource: json['fareSource'] as String? ?? 'estimated',
+      routeDistanceM: json['routeDistanceM'] as int?,
+      tripDurationS: json['tripDurationS'] as int?,
+    );
+  }
+}
+
+class RideCompletion {
+  const RideCompletion({
+    required this.fare,
+    this.reviewPending = false,
+    this.reviewExpiresAt,
+    this.pollIntervalMs,
+  });
+
+  final RideCompletionFare fare;
+  final bool reviewPending;
+  final String? reviewExpiresAt;
+  final int? pollIntervalMs;
+
+  factory RideCompletion.fromJson(Map<String, dynamic> json) {
+    return RideCompletion(
+      fare: RideCompletionFare.fromJson(json['fare'] as Map<String, dynamic>),
+      reviewPending: json['reviewPending'] as bool? ?? false,
+      reviewExpiresAt: json['reviewExpiresAt'] as String?,
+      pollIntervalMs: json['pollIntervalMs'] as int?,
+    );
+  }
+}
+
 class RideDetail {
   const RideDetail({
     required this.ride,
@@ -317,6 +372,7 @@ class RideDetail {
     this.startCodes,
     this.tracking,
     this.lifecycle,
+    this.completion,
     this.payment,
   });
 
@@ -325,6 +381,7 @@ class RideDetail {
   final StartCodes? startCodes;
   final RideTracking? tracking;
   final RideLifecycle? lifecycle;
+  final RideCompletion? completion;
   final PaymentIntent? payment;
 
   factory RideDetail.fromJson(Map<String, dynamic> json) {
@@ -341,6 +398,9 @@ class RideDetail {
           : null,
       lifecycle: json['lifecycle'] != null
           ? RideLifecycle.fromJson(json['lifecycle'] as Map<String, dynamic>)
+          : null,
+      completion: json['completion'] != null
+          ? RideCompletion.fromJson(json['completion'] as Map<String, dynamic>)
           : null,
       payment: json['payment'] != null
           ? PaymentIntent.fromJson(json['payment'] as Map<String, dynamic>)

@@ -50,6 +50,13 @@ class RideService {
     );
   }
 
+  Future<RideCompletion> fetchCompletion(String rideId) async {
+    final res = await _client.get('/v1/rides/$rideId/completion');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return RideCompletion.fromJson(data['completion'] as Map<String, dynamic>);
+  }
+
   Future<RideLifecycle> fetchLifecycle(String rideId) async {
     final res = await _client.get('/v1/rides/$rideId/lifecycle');
     final data = _client.decodeJson(res);

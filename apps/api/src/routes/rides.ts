@@ -59,6 +59,10 @@ import {
   recordLifecycleProductionEvent,
   toPublicRideLifecycleProduction,
 } from '../ride/rideLifecycleProductionService.js';
+import {
+  getRideCompletionProduction,
+  toPublicRideCompletionProduction,
+} from '../ride/rideCompletionProductionService.js';
 import { resolveDriverActiveRideId } from '../ride/rideTrackingService.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
@@ -617,6 +621,10 @@ ridesRouter.get('/:id', async (req, res) => {
   const verification = await getRideVerification(ride.id);
   const tracking = await getRideTrackingProduction(ride);
   const lifecycle = await getRideLifecycleProductionWithDriverCoords(ride);
+  const completion =
+    ride.status === 'COMPLETED'
+      ? await getRideCompletionProduction(ride, req.user!.id)
+      : null;
   let startCodes: { yours: string; partner: string } | undefined;
   let payment: ReturnType<typeof toPublicPaymentIntent> | undefined;
   if (ride.paymentIntentId) {
@@ -643,6 +651,7 @@ ridesRouter.get('/:id', async (req, res) => {
     ...(payment ? { payment } : {}),
     ...(tracking ? { tracking: toPublicRideTrackingProduction(tracking) } : {}),
     ...(lifecycle ? { lifecycle: toPublicRideLifecycleProduction(lifecycle) } : {}),
+    ...(completion ? { completion: toPublicRideCompletionProduction(completion) } : {}),
     ...(startCodes ? { startCodes } : {}),
   });
 });
@@ -681,6 +690,24 @@ ridesRouter.get('/:id/lifecycle', async (req, res) => {
     return;
   }
   res.json({ lifecycle: toPublicRideLifecycleProduction(lifecycle) });
+});
+
+ridesRouter.get('/:id/completion', async (req, res) => {
+  const ride = await getRide(req.params.id);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada' });
+    return;
+  }
+  if (ride.passengerId !== req.user!.id && ride.driverId !== req.user!.id) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+  const completion = await getRideCompletionProduction(ride, req.user!.id);
+  if (!completion) {
+    res.status(404).json({ error: 'Completion indisponível para o status atual' });
+    return;
+  }
+  res.json({ completion: toPublicRideCompletionProduction(completion) });
 });
 
 ridesRouter.get('/:id/route', async (req, res) => {
@@ -903,7 +930,11 @@ ridesRouter.post('/:id/complete', async (req, res) => {
 
   try {
     const ride = await driverCompleteRide(req.params.id, req.user!.id);
-    res.json({ ride: toPublicRide(ride) });
+    const completion = await getRideCompletionProduction(ride, req.user!.id);
+    res.json({
+      ride: toPublicRide(ride),
+      ...(completion ? { completion: toPublicRideCompletionProduction(completion) } : {}),
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Falha ao concluir corrida';
     res.status(409).json({ error: message });

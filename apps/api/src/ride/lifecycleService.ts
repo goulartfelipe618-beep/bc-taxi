@@ -181,11 +181,20 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     throw new Error(`Status inválido para conclusão: ${ride.status}`);
   }
 
-  const amount = ride.estimatedFareCentavos ?? undefined;
-  await captureRidePayment(rideId, amount, {
+  const { assessArrivalWaitPolicy, markPolicyChargesCaptured } = await import(
+    '../config/policyEnforcementService.js'
+  );
+  const waitFee = await assessArrivalWaitPolicy(ride);
+  const baseFare = ride.estimatedFareCentavos ?? 0;
+  const amount = baseFare + waitFee.feeCentavos;
+
+  await captureRidePayment(rideId, amount > 0 ? amount : undefined, {
     categoryCode: ride.categoryCode as import('../domain/types.js').RideCategoryCode,
     driverUserId: driverId,
   });
+  if (waitFee.feeCentavos > 0) {
+    await markPolicyChargesCaptured(rideId, 'arrival_wait_fee');
+  }
 
   const completed = await updateLifecycle(rideId, {
     status: 'COMPLETED',
@@ -197,7 +206,12 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     rideId,
     phase: 'settlement',
     quotedFareCentavos: amount,
-    snapshotJson: { capturedAmountCentavos: amount, driverId },
+    snapshotJson: {
+      capturedAmountCentavos: amount,
+      baseFareCentavos: baseFare,
+      arrivalWaitFeeCentavos: waitFee.feeCentavos,
+      driverId,
+    },
   });
 
   await releaseDriver(completed);

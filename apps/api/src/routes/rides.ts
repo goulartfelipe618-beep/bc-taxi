@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getCategory } from '../domain/rideCategories.js';
-import { isCashPaymentAllowed, isPassengerCategoryAllowed, isPassengerPrepayRequired, getTier } from '../domain/reputation.js';
+import { isPassengerCategoryAllowed, isPassengerPrepayRequired, getTier } from '../domain/reputation.js';
+import {
+  isCashAllowedByPolicy,
+  isPremiumCategoryAllowedByPolicy,
+  assessPassengerCancellationPolicy,
+} from '../config/policyEnforcementService.js';
+import { resolveServiceRegionIdAtPoint } from '../region/serviceRegionGeoService.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { quoteWithDynamicPricing } from '../pricing/dynamicPricingService.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -23,6 +29,8 @@ import {
   attachIntentToRide,
   authorizeRidePayment,
   getIntentPix,
+  settleCancelPolicyFee,
+  cancelRidePayment,
 } from '../payments/paymentService.js';
 import { evaluateRideRisk } from '../fraud/riskEngine.js';
 import {
@@ -214,9 +222,28 @@ ridesRouter.post('/', async (req, res) => {
   const { resolvePaymentFingerprint } = await import('../promotions/couponAbuseService.js');
   const paymentFingerprint = await resolvePaymentFingerprint(req.user!.id, paymentMethodId);
 
-  if (methodType === 'cash' && !isCashPaymentAllowed(passengerRepScore)) {
+  const serviceRegionId =
+    (await resolveServiceRegionIdAtPoint(parsed.data.pickupLat, parsed.data.pickupLng)) ?? undefined;
+
+  if (methodType === 'cash' && !(await isCashAllowedByPolicy(passengerRepScore, parsed.data.categoryCode, serviceRegionId))) {
     res.status(403).json({ error: 'Pagamento em dinheiro não permitido para sua reputação atual' });
     return;
+  }
+
+  const categoryMeta = getCategory(parsed.data.categoryCode);
+  if (categoryMeta?.isPremium) {
+    const premiumCheck = await isPremiumCategoryAllowedByPolicy({
+      reputationScore: passengerRepScore,
+      categoryCode: parsed.data.categoryCode,
+      regionId: serviceRegionId,
+    });
+    if (!premiumCheck.allowed) {
+      res.status(403).json({
+        error: 'Reputação ou segmento insuficiente para categoria premium',
+        reason: premiumCheck.reason,
+      });
+      return;
+    }
   }
   if (!(await isPaymentMethodAllowed(methodType, passengerTier))) {
     res.status(403).json({ error: 'Forma de pagamento não habilitada para seu segmento' });
@@ -653,13 +680,30 @@ ridesRouter.post('/:id/route/recalculate', async (req, res) => {
 });
 
 ridesRouter.post('/:id/cancel', async (req, res) => {
+  const existing = await getRide(req.params.id);
+  if (!existing || existing.passengerId !== req.user!.id) {
+    res.status(404).json({ error: 'Corrida não encontrada ou não cancelável' });
+    return;
+  }
+  const priorStatus = existing.status;
+  const cancelPolicy = await assessPassengerCancellationPolicy(existing, priorStatus);
+
   const ride = await cancelRide(req.params.id, req.user!.id, req.body?.reason);
   if (!ride) {
     res.status(404).json({ error: 'Corrida não encontrada ou não cancelável' });
     return;
   }
-  await cancelRidePayment(ride.id);
-  res.json({ ride: toPublicRide(ride) });
+
+  if (cancelPolicy.feeCentavos > 0) {
+    await settleCancelPolicyFee(ride.id, cancelPolicy.feeCentavos);
+  } else {
+    await cancelRidePayment(ride.id);
+  }
+
+  res.json({
+    ride: toPublicRide(ride),
+    cancellationFeeCentavos: cancelPolicy.feeCentavos,
+  });
 });
 
 ridesRouter.post('/:id/driver-cancel', async (req, res) => {

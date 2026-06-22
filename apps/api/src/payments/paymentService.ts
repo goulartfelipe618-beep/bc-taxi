@@ -130,6 +130,22 @@ export async function attachIntentToRide(rideId: string, intentId: string) {
   await attachIntentToRideStore(rideId, intentId);
 }
 
+export async function settleCancelPolicyFee(rideId: string, feeCentavos: number) {
+  const intent = await getPaymentIntentForRide(rideId);
+  if (!intent || feeCentavos <= 0) {
+    return cancelRidePayment(rideId);
+  }
+  if (intent.status !== 'authorized') {
+    return cancelRidePayment(rideId);
+  }
+
+  const captureAmount = Math.min(feeCentavos, intent.amountAuthorizedCentavos);
+  const captured = await captureRidePayment(rideId, captureAmount);
+  const { markPolicyChargesCaptured } = await import('../config/policyEnforcementService.js');
+  await markPolicyChargesCaptured(rideId, 'cancellation_fee');
+  return captured;
+}
+
 export async function cancelRidePayment(rideId: string) {
   const intent = await getPaymentIntentForRide(rideId);
   if (!intent) return null;

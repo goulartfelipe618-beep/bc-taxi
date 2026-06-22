@@ -327,3 +327,25 @@ export function __testGetCorporateProductionEvents() {
 export function __testGetCorporateApprovals() {
   return memoryApprovals;
 }
+
+export async function listPendingCorporateRideApprovals(limit = 50): Promise<CorporateRideApproval[]> {
+  if (config.useMemoryDb) {
+    return memoryApprovals.filter((a) => a.status === 'pending').slice(0, limit);
+  }
+  const { rows } = await pool.query(
+    `SELECT id, account_id, ride_id, requester_user_id, quoted_fare_centavos, status
+     FROM corporate_ride_approvals
+     WHERE status = 'pending'
+     ORDER BY created_at ASC
+     LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    accountId: r.account_id as string,
+    rideId: r.ride_id as string,
+    requesterUserId: r.requester_user_id as string,
+    quotedFareCentavos: Number(r.quoted_fare_centavos),
+    status: r.status as string,
+  }));
+}

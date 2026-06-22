@@ -454,3 +454,59 @@ export function __testGetObservabilityProductionEvents() {
 export function __testGetObservabilityProductionAlerts() {
   return memoryProductionAlerts;
 }
+
+export async function listOpenProductionAlerts(limit = 20): Promise<OpsAlert[]> {
+  if (config.useMemoryDb) {
+    return memoryProductionAlerts.filter((a) => a.status === 'open').slice(0, limit);
+  }
+  const { rows } = await pool.query(
+    `SELECT id, alert_type, severity, summary, metric_value, threshold_value, status, created_at
+     FROM ops_alerts
+     WHERE status = 'open' AND component IS NOT NULL
+     ORDER BY created_at DESC
+     LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    alertType: r.alert_type as string,
+    severity: r.severity as OpsAlert['severity'],
+    summary: r.summary as string,
+    metricValue: r.metric_value != null ? Number(r.metric_value) : undefined,
+    thresholdValue: r.threshold_value != null ? Number(r.threshold_value) : undefined,
+    status: r.status as string,
+    createdAt: new Date(r.created_at as string),
+  }));
+}
+
+export async function acknowledgeProductionAlert(alertId: string, userId: string) {
+  if (config.useMemoryDb) {
+    const alert = memoryProductionAlerts.find((a) => a.id === alertId && a.status === 'open');
+    if (alert) alert.status = 'acknowledged';
+    return alert ?? null;
+  }
+  const { rows } = await pool.query(
+    `UPDATE ops_alerts SET status = 'acknowledged', acknowledged_at = NOW(), acknowledged_by = $2
+     WHERE id = $1 AND status = 'open'
+     RETURNING id, alert_type, severity, summary, status, created_at`,
+    [alertId, userId],
+  );
+  if (!rows[0]) return null;
+  return {
+    id: rows[0].id as string,
+    alertType: rows[0].alert_type as string,
+    severity: rows[0].severity as OpsAlert['severity'],
+    summary: rows[0].summary as string,
+    status: rows[0].status as string,
+    createdAt: new Date(rows[0].created_at as string),
+  };
+}
+
+export async function resolveProductionAlert(alertId: string) {
+  if (config.useMemoryDb) {
+    const alert = memoryProductionAlerts.find((a) => a.id === alertId);
+    if (alert) alert.status = 'resolved';
+    return alert ?? null;
+  }
+  await pool.query(`UPDATE ops_alerts SET status = 'resolved', resolved_at = NOW() WHERE id = $1`, [alertId]);
+}

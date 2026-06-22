@@ -19,6 +19,15 @@ import {
   listOpenOpsAlerts,
 } from '../observability/opsMetricsService.js';
 import { z } from 'zod';
+import {
+  acknowledgeBackofficeAlert,
+  approveCorporateFromBackoffice,
+  getBackofficeConsoleDashboard,
+  listBackofficeTaskQueue,
+  resolveBackofficeAlert,
+  resolveBackofficeFraudCase,
+  restrictDriverDeliveryFromBackoffice,
+} from '../admin/backofficeProductionService.js';
 
 export const adminRouter = Router();
 
@@ -120,4 +129,118 @@ adminRouter.post('/governance/match-versions', async (req, res) => {
 
 adminRouter.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'admin' });
+});
+
+adminRouter.get('/console/dashboard', async (_req, res) => {
+  const dashboard = await getBackofficeConsoleDashboard();
+  await logAdminAction('backoffice_console_dashboard', 'backoffice');
+  res.json(dashboard);
+});
+
+adminRouter.get('/console/tasks', async (_req, res) => {
+  const tasks = await listBackofficeTaskQueue();
+  await logAdminAction('backoffice_task_queue', 'backoffice', undefined, { count: tasks.length });
+  res.json({ tasks });
+});
+
+const operatorSchema = z.object({
+  operatorLabel: z.string().min(1),
+  operatorUserId: z.string().uuid().optional(),
+});
+
+adminRouter.post('/console/alerts/:id/acknowledge', async (req, res) => {
+  const parsed = operatorSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const alert = await acknowledgeBackofficeAlert({
+      alertId: req.params.id,
+      operatorLabel: parsed.data.operatorLabel,
+      operatorUserId: parsed.data.operatorUserId,
+    });
+    res.json({ alert });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : 'Alerta não encontrado' });
+  }
+});
+
+adminRouter.post('/console/alerts/:id/resolve', async (req, res) => {
+  const parsed = operatorSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const result = await resolveBackofficeAlert({
+    alertId: req.params.id,
+    operatorLabel: parsed.data.operatorLabel,
+  });
+  res.json(result);
+});
+
+const fraudReviewSchema = operatorSchema.extend({
+  decision: z.enum(['cleared', 'confirmed']),
+});
+
+adminRouter.post('/console/fraud/cases/:id/review', async (req, res) => {
+  const parsed = fraudReviewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const result = await resolveBackofficeFraudCase({
+      caseId: req.params.id,
+      operatorLabel: parsed.data.operatorLabel,
+      decision: parsed.data.decision,
+    });
+    res.json({ result });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : 'Caso não encontrado' });
+  }
+});
+
+const restrictDriverSchema = operatorSchema.extend({
+  reason: z.string().min(3),
+  restrictedUntil: z.string().datetime().optional(),
+});
+
+adminRouter.post('/console/drivers/:id/restrict-delivery', async (req, res) => {
+  const parsed = restrictDriverSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const result = await restrictDriverDeliveryFromBackoffice({
+    driverUserId: req.params.id,
+    reason: parsed.data.reason,
+    operatorLabel: parsed.data.operatorLabel,
+    restrictedUntil: parsed.data.restrictedUntil,
+  });
+  res.json({ result });
+});
+
+const corporateApprovalSchema = operatorSchema.extend({
+  accountId: z.string().uuid(),
+  operatorUserId: z.string().uuid(),
+});
+
+adminRouter.post('/console/corporate/approvals/:id/approve', async (req, res) => {
+  const parsed = corporateApprovalSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const approval = await approveCorporateFromBackoffice({
+      approvalId: req.params.id,
+      accountId: parsed.data.accountId,
+      operatorLabel: parsed.data.operatorLabel,
+      operatorUserId: parsed.data.operatorUserId,
+    });
+    res.json({ approval });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : 'Aprovação não encontrada' });
+  }
 });

@@ -181,9 +181,7 @@ export async function driverCompleteRide(rideId: string, driverId: string): Prom
     throw new Error(`Status inválido para conclusão: ${ride.status}`);
   }
 
-  const { assessArrivalWaitPolicy, markPolicyChargesCaptured } = await import(
-    '../config/policyEnforcementService.js'
-  );
+  const { markPolicyChargesCaptured } = await import('../config/policyEnforcementService.js');
   const {
     resolveProductionCompletionFare,
     recordProductionCompletionSnapshot,

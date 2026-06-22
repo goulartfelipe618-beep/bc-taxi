@@ -42,8 +42,10 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   late final RealtimeService _realtime = RealtimeService(token: widget.token);
   Timer? _pollTimer;
   Timer? _trackingTimer;
+  Timer? _lifecycleTimer;
   RideDetail? _detail;
   RideTracking? _liveTracking;
+  RideLifecycle? _liveLifecycle;
   PaymentIntent? _payment;
   DriverLocation? _liveDriverLocation;
   DateTime? _lastLocationUiUpdate;
@@ -54,6 +56,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
 
   RideRecord? get _ride => _detail?.ride;
   RideTracking? get _tracking => _liveTracking ?? _detail?.tracking;
+  RideLifecycle? get _lifecycle => _liveLifecycle ?? _detail?.lifecycle;
   DriverLocation? get _driverLocation => _liveDriverLocation ?? _tracking?.driverLocation;
 
   @override
@@ -67,6 +70,29 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
     _poll();
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => _poll());
     _scheduleTrackingPoll(5000);
+    _scheduleLifecyclePoll(3000);
+  }
+
+  void _scheduleLifecyclePoll(int delayMs) {
+    _lifecycleTimer?.cancel();
+    _lifecycleTimer = Timer(Duration(milliseconds: delayMs), () async {
+      await _pollLifecycle();
+    });
+  }
+
+  Future<void> _pollLifecycle() async {
+    final ride = _ride;
+    if (ride == null || !['DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS'].contains(ride.status)) {
+      return;
+    }
+    try {
+      final lifecycle = await _rideService.fetchLifecycle(widget.rideId);
+      if (!mounted) return;
+      setState(() => _liveLifecycle = lifecycle);
+      _scheduleLifecyclePoll(lifecycle.pollIntervalMs ?? 3000);
+    } catch (_) {
+      _scheduleLifecyclePoll(5000);
+    }
   }
 
   void _scheduleTrackingPoll(int delayMs) {
@@ -157,6 +183,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _trackingTimer?.cancel();
+    _lifecycleTimer?.cancel();
     _realtime.removeListener(_onRealtimeEvent);
     _realtime.disconnect();
     _codeController.dispose();
@@ -193,6 +220,7 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
       if (detail.ride.isTerminal) {
         _pollTimer?.cancel();
         _trackingTimer?.cancel();
+        _lifecycleTimer?.cancel();
         if (detail.ride.status == 'COMPLETED' && !_reviewShown) {
           _reviewShown = true;
           _showReview();
@@ -462,13 +490,30 @@ class _RideActiveScreenState extends State<RideActiveScreen> {
   }
 
   Widget _codeEntryCard() {
-    final verification = _detail?.verification;
+    final verification = _lifecycle?.verification ?? _detail?.verification;
+    final waitTimer = _lifecycle?.waitTimer;
     final startCodes = _detail?.startCodes;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: BcColors.grayLight, borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
+          if (waitTimer != null && waitTimer.active) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Tempo de espera', style: PassengerTheme.caption),
+                Text(waitTimer.elapsedLabel, style: PassengerTheme.titleMedium.copyWith(fontSize: 20)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${waitTimer.includedMinutes} min incluídos · ${waitTimer.feeLabel}',
+              style: PassengerTheme.caption,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+          ],
           if (startCodes != null) ...[
             const Text('O seu código', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),

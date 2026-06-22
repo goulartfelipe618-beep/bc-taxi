@@ -166,6 +166,66 @@ class AssignedDriver {
   }
 }
 
+class RideLifecycleWaitTimer {
+  const RideLifecycleWaitTimer({
+    required this.active,
+    required this.elapsedSeconds,
+    required this.includedMinutes,
+    required this.billableMinutes,
+    required this.estimatedFeeCentavos,
+    required this.feeLabel,
+  });
+
+  final bool active;
+  final int elapsedSeconds;
+  final int includedMinutes;
+  final int billableMinutes;
+  final int estimatedFeeCentavos;
+  final String feeLabel;
+
+  factory RideLifecycleWaitTimer.fromJson(Map<String, dynamic> json) {
+    return RideLifecycleWaitTimer(
+      active: json['active'] as bool? ?? false,
+      elapsedSeconds: json['elapsedSeconds'] as int? ?? 0,
+      includedMinutes: json['includedMinutes'] as int? ?? 0,
+      billableMinutes: json['billableMinutes'] as int? ?? 0,
+      estimatedFeeCentavos: json['estimatedFeeCentavos'] as int? ?? 0,
+      feeLabel: json['feeLabel'] as String? ?? '',
+    );
+  }
+
+  String get elapsedLabel {
+    final min = elapsedSeconds ~/ 60;
+    final sec = elapsedSeconds % 60;
+    if (min <= 0) return '${sec}s';
+    return '${min}m ${sec.toString().padLeft(2, '0')}s';
+  }
+}
+
+class RideLifecycle {
+  const RideLifecycle({
+    this.verification,
+    this.waitTimer,
+    this.pollIntervalMs,
+  });
+
+  final RideVerification? verification;
+  final RideLifecycleWaitTimer? waitTimer;
+  final int? pollIntervalMs;
+
+  factory RideLifecycle.fromJson(Map<String, dynamic> json) {
+    return RideLifecycle(
+      verification: json['verification'] != null
+          ? RideVerification.fromJson(json['verification'] as Map<String, dynamic>)
+          : null,
+      waitTimer: json['waitTimer'] != null
+          ? RideLifecycleWaitTimer.fromJson(json['waitTimer'] as Map<String, dynamic>)
+          : null,
+      pollIntervalMs: json['pollIntervalMs'] as int?,
+    );
+  }
+}
+
 class RideTracking {
   const RideTracking({
     required this.driver,
@@ -256,6 +316,7 @@ class RideDetail {
     this.verification,
     this.startCodes,
     this.tracking,
+    this.lifecycle,
     this.payment,
   });
 
@@ -263,6 +324,7 @@ class RideDetail {
   final RideVerification? verification;
   final StartCodes? startCodes;
   final RideTracking? tracking;
+  final RideLifecycle? lifecycle;
   final PaymentIntent? payment;
 
   factory RideDetail.fromJson(Map<String, dynamic> json) {
@@ -276,6 +338,9 @@ class RideDetail {
           : null,
       tracking: json['tracking'] != null
           ? RideTracking.fromJson(json['tracking'] as Map<String, dynamic>)
+          : null,
+      lifecycle: json['lifecycle'] != null
+          ? RideLifecycle.fromJson(json['lifecycle'] as Map<String, dynamic>)
           : null,
       payment: json['payment'] != null
           ? PaymentIntent.fromJson(json['payment'] as Map<String, dynamic>)

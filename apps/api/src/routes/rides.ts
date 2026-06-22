@@ -54,6 +54,11 @@ import {
   listRideTrackingSnapshots,
   toPublicRideTrackingProduction,
 } from '../ride/rideTrackingProductionService.js';
+import {
+  getRideLifecycleProductionWithDriverCoords,
+  recordLifecycleProductionEvent,
+  toPublicRideLifecycleProduction,
+} from '../ride/rideLifecycleProductionService.js';
 import { resolveDriverActiveRideId } from '../ride/rideTrackingService.js';
 import { memoryMatchStore, setDriverOnlinePg, useMemory } from '../stores/memoryMatchStore.js';
 import { getDriverCompliance, toPublicCompliance } from '../fleet/complianceService.js';
@@ -611,6 +616,7 @@ ridesRouter.get('/:id', async (req, res) => {
   }
   const verification = await getRideVerification(ride.id);
   const tracking = await getRideTrackingProduction(ride);
+  const lifecycle = await getRideLifecycleProductionWithDriverCoords(ride);
   let startCodes: { yours: string; partner: string } | undefined;
   let payment: ReturnType<typeof toPublicPaymentIntent> | undefined;
   if (ride.paymentIntentId) {
@@ -636,6 +642,7 @@ ridesRouter.get('/:id', async (req, res) => {
     verification,
     ...(payment ? { payment } : {}),
     ...(tracking ? { tracking: toPublicRideTrackingProduction(tracking) } : {}),
+    ...(lifecycle ? { lifecycle: toPublicRideLifecycleProduction(lifecycle) } : {}),
     ...(startCodes ? { startCodes } : {}),
   });
 });
@@ -656,6 +663,24 @@ ridesRouter.get('/:id/tracking', async (req, res) => {
     return;
   }
   res.json({ tracking: toPublicRideTrackingProduction(tracking) });
+});
+
+ridesRouter.get('/:id/lifecycle', async (req, res) => {
+  const ride = await getRide(req.params.id);
+  if (!ride) {
+    res.status(404).json({ error: 'Corrida não encontrada' });
+    return;
+  }
+  if (ride.passengerId !== req.user!.id && ride.driverId !== req.user!.id) {
+    res.status(403).json({ error: 'Acesso negado' });
+    return;
+  }
+  const lifecycle = await getRideLifecycleProductionWithDriverCoords(ride);
+  if (!lifecycle) {
+    res.status(404).json({ error: 'Lifecycle indisponível para o status atual' });
+    return;
+  }
+  res.json({ lifecycle: toPublicRideLifecycleProduction(lifecycle) });
 });
 
 ridesRouter.get('/:id/route', async (req, res) => {
@@ -758,6 +783,11 @@ ridesRouter.post('/:id/arrived', async (req, res) => {
 
   try {
     const result = await driverMarkArrived(req.params.id, req.user!.id);
+    void recordLifecycleProductionEvent({
+      rideId: req.params.id,
+      eventType: 'manual_arrived',
+      actorUserId: req.user!.id,
+    });
     res.json({
       ride: toPublicRide(result.ride),
       verification: result.verification,
@@ -786,6 +816,12 @@ ridesRouter.post('/:id/verify-passenger-code', async (req, res) => {
     res.status(400).json(result);
     return;
   }
+  void recordLifecycleProductionEvent({
+    rideId: req.params.id,
+    eventType: result.started ? 'ride_started' : 'code_verified',
+    actorUserId: req.user!.id,
+    payload: { role: 'passenger' },
+  });
 
   const ride = await getRide(req.params.id);
   res.json({ ...result, ride: ride ? toPublicRide(ride) : undefined });
@@ -808,6 +844,12 @@ ridesRouter.post('/:id/verify-driver-code', async (req, res) => {
     res.status(400).json(result);
     return;
   }
+  void recordLifecycleProductionEvent({
+    rideId: req.params.id,
+    eventType: result.started ? 'ride_started' : 'code_verified',
+    actorUserId: req.user!.id,
+    payload: { role: 'driver' },
+  });
 
   const ride = await getRide(req.params.id);
   res.json({ ...result, ride: ride ? toPublicRide(ride) : undefined });

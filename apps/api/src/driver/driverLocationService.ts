@@ -177,6 +177,9 @@ export async function updateDriverLocation(input: {
         rideId,
       }),
     );
+    void import('../ride/rideLifecycleProductionService.js').then(({ maybeAutoMarkArrivedFromLocation }) =>
+      maybeAutoMarkArrivedFromLocation(rideId, input.driverId, input.lat, input.lng),
+    );
   }
 
   const prodCfg = await getRealtimeProductionConfig();

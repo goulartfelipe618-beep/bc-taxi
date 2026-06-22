@@ -50,6 +50,13 @@ class RideService {
     );
   }
 
+  Future<RideLifecycle> fetchLifecycle(String rideId) async {
+    final res = await _client.get('/v1/rides/$rideId/lifecycle');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return RideLifecycle.fromJson(data['lifecycle'] as Map<String, dynamic>);
+  }
+
   Future<RideTracking> fetchTracking(String rideId) async {
     final res = await _client.get('/v1/rides/$rideId/tracking');
     final data = _client.decodeJson(res);

@@ -50,6 +50,32 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function optionalAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+
+  try {
+    const token = header.slice(7);
+    const payload = jwt.verify(token, config.jwtSecret) as AuthPayload;
+
+    let user: DbUser | null;
+    if (config.useMemoryDb) {
+      user = await userStore.findUserById(payload.userId);
+    } else {
+      const result = await pool.query<DbUser>('SELECT * FROM users WHERE id = $1', [payload.userId]);
+      user = result.rowCount ? result.rows[0] : null;
+    }
+
+    if (user) req.user = user;
+    next();
+  } catch {
+    next();
+  }
+}
+
 export function authResponse(user: DbUser) {
   return {
     token: signToken(user.id),

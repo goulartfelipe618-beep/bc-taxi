@@ -6,6 +6,7 @@ import '../../models/trip_draft.dart';
 import '../../services/api_client.dart';
 import '../../services/auth_service.dart';
 import '../../services/catalog_service.dart';
+import '../../services/client_bootstrap_service.dart';
 import '../../services/promotion_service.dart';
 import '../../services/ride_service.dart';
 import '../../services/schedule_service.dart';
@@ -50,6 +51,30 @@ class _ChooseRideScreenState extends State<ChooseRideScreen> {
     super.initState();
     _tripWithRoute = widget.trip;
     _loadCategories();
+    _loadPaymentBootstrap();
+  }
+
+  Future<void> _loadPaymentBootstrap() async {
+    final auth = context.read<AuthService>();
+    final trip = _tripWithRoute ?? widget.trip;
+    try {
+      final bootstrap = await ClientBootstrapService.fetch(
+        token: auth.token,
+        lat: trip.pickupLat,
+        lng: trip.pickupLng,
+      );
+      if (!mounted || bootstrap.paymentMethods.isEmpty) return;
+      final defaultMethod = bootstrap.paymentMethods.firstWhere(
+        (m) => m.isDefault,
+        orElse: () => bootstrap.paymentMethods.first,
+      );
+      setState(() {
+        _paymentLabel = defaultMethod.label;
+        _paymentMethodId = defaultMethod.id;
+      });
+    } catch (_) {
+      // Mantém fallback demo se bootstrap indisponível
+    }
   }
 
   Future<void> _loadCategories() async {

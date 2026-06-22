@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { config } from '../config.js';
 import { MATCH_CONFIG } from '../domain/match.js';
 import { getTier } from '../domain/reputation.js';
 import {
@@ -10,6 +11,8 @@ import {
   useMemory,
 } from '../stores/memoryMatchStore.js';
 import { findNearbyDriversPostGIS, isPostgisMatchEnabled } from './geoMatchStore.js';
+import { findNearbyDriversGeoGo, isGeoGoMatchEnabled } from './geoGoMatchService.js';
+import { getCategoryLocationFreshnessSeconds } from '../catalog/categoryDocumentProductionService.js';
 import {
   cancelRidePg,
   cancelRideByDriverPg,
@@ -72,8 +75,35 @@ export async function getRide(id: string): Promise<RideRecord | null> {
   return getRidePg(id);
 }
 
-async function findOnlineDrivers(pickup?: { lat: number; lng: number; radiusM?: number }) {
-  if (useMemory()) return memoryMatchStore.findOnlineDrivers();
+async function findOnlineDrivers(
+  pickup?: { lat: number; lng: number; radiusM?: number },
+  categoryCode?: string,
+  regionId?: string,
+  rideId?: string,
+) {
+  if (useMemory()) {
+    if (pickup && categoryCode && isGeoGoMatchEnabled()) {
+      return findNearbyDriversGeoGo({
+        lat: pickup.lat,
+        lng: pickup.lng,
+        radiusM: pickup.radiusM ?? 10000,
+        categoryCode,
+        regionId,
+        rideId,
+      });
+    }
+    return memoryMatchStore.findOnlineDrivers();
+  }
+  if (pickup && categoryCode && isGeoGoMatchEnabled()) {
+    return findNearbyDriversGeoGo({
+      lat: pickup.lat,
+      lng: pickup.lng,
+      radiusM: pickup.radiusM ?? 10000,
+      categoryCode,
+      regionId,
+      rideId,
+    });
+  }
   if (pickup && isPostgisMatchEnabled()) {
     const nearby = await findNearbyDriversPostGIS(pickup.lat, pickup.lng, pickup.radiusM ?? 10000);
     return nearby.map(({ distanceM: _d, ...driver }) => driver);
@@ -298,13 +328,29 @@ export async function runMatchStage(rideId: string, stageIndex: number, passenge
     await updateRideStatusPg(rideId, 'OFFERING', stageIndex + 1);
   }
 
-  const allDrivers = await findOnlineDrivers({
-    lat: ride.pickupLat,
-    lng: ride.pickupLng,
-    radiusM,
-  });
+  const allDrivers = await findOnlineDrivers(
+    {
+      lat: ride.pickupLat,
+      lng: ride.pickupLng,
+      radiusM,
+    },
+    ride.categoryCode,
+    serviceRegionId ?? undefined,
+    ride.id,
+  );
   const passenger = buildPassengerContext(ride, passengerReputation);
-  const eligible = await filterEligibleDrivers(allDrivers, ride, passenger, radiusM);
+  const locationSlaSeconds = await getCategoryLocationFreshnessSeconds(
+    ride.categoryCode,
+    serviceRegionId ?? config.defaultServiceRegionId,
+  );
+  const eligible = await filterEligibleDrivers(
+    allDrivers,
+    ride,
+    passenger,
+    radiusM,
+    locationSlaSeconds,
+    serviceRegionId ?? undefined,
+  );
   let scored = scoreCandidates(eligible, ride, passenger, radiusM, agingBonus);
   const { shouldApplyAirportQueue, rankCandidatesForAirportQueue } = await import(
     '../airport/airportQueueService.js'

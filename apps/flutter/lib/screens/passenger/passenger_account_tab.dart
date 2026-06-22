@@ -2,14 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../constants/passenger_data.dart';
+import '../../services/client_bootstrap_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/passenger_theme.dart';
 import '../login_screen.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
 
-class PassengerAccountTab extends StatelessWidget {
+class PassengerAccountTab extends StatefulWidget {
   const PassengerAccountTab({super.key});
+
+  @override
+  State<PassengerAccountTab> createState() => _PassengerAccountTabState();
+}
+
+class _PassengerAccountTabState extends State<PassengerAccountTab> {
+  double? _rating;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBootstrap();
+  }
+
+  Future<void> _loadBootstrap() async {
+    final auth = context.read<AuthService>();
+    try {
+      final bootstrap = await ClientBootstrapService.fetch(token: auth.token);
+      if (!mounted) return;
+      setState(() => _rating = bootstrap.reputationScore ?? bootstrap.profile?['rating'] as double?);
+    } catch (_) {}
+  }
 
   Future<void> _logout(BuildContext context) async {
     await context.read<AuthService>().logout();
@@ -21,6 +44,7 @@ class PassengerAccountTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = context.watch<AuthService>().user!;
     final name = user.fullName.toLowerCase();
+    final ratingLabel = (_rating ?? mockUser.rating).toStringAsFixed(2).replaceAll('.', ',');
 
     return SafeArea(
       child: ListView(
@@ -40,7 +64,7 @@ class PassengerAccountTab extends StatelessWidget {
                       Row(
                         children: [
                           const Icon(Icons.star, size: 16),
-                          Text(' ${mockUser.rating.toStringAsFixed(2).replaceAll('.', ',')}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(' $ratingLabel', style: const TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(width: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

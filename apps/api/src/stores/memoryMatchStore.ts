@@ -469,6 +469,13 @@ export async function assignDriverToRidePg(rideId: string, driverId: string, rid
   }
 }
 
+export function __testAgeAllDriverLocations(ageMs: number) {
+  const ts = new Date(Date.now() - ageMs);
+  for (const d of drivers.values()) {
+    if (d.lat != null) d.locationUpdatedAt = ts;
+  }
+}
+
 export function useMemory() {
   return config.useMemoryDb;
 }

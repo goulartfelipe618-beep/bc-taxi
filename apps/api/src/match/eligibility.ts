@@ -5,6 +5,7 @@ import type { RideCategoryCode } from '../domain/types.js';
 import { driverHasCollectiveCert } from '../collective/collectiveTransportService.js';
 import { isPairBlocked } from './blockService.js';
 import { isDriverCompliantForCategory } from '../fleet/complianceService.js';
+import { validateDriverCategoryProduction } from '../catalog/categoryDocumentProductionService.js';
 import {
   driverHasPcdOptIn,
   isDriverCompatibleWithNeed,
@@ -31,9 +32,9 @@ export function estimateEtaSeconds(distanceM: number): number {
   return Math.max(60, Math.round(distanceM / avgSpeedMs));
 }
 
-function isLocationFresh(driver: DriverRecord): boolean {
+function isLocationFresh(driver: DriverRecord, slaSeconds = LOCATION_SLA_SECONDS): boolean {
   if (driver.lat == null || driver.lng == null || !driver.locationUpdatedAt) return false;
-  return Date.now() - driver.locationUpdatedAt.getTime() <= LOCATION_SLA_SECONDS * 1000;
+  return Date.now() - driver.locationUpdatedAt.getTime() <= slaSeconds * 1000;
 }
 
 function driverSupportsCategory(driver: DriverRecord, categoryCode: string): number {
@@ -102,19 +103,31 @@ export async function filterEligibleDrivers(
   ride: RideRecord,
   passenger: PassengerContext,
   radiusM: number,
+  locationSlaSeconds = LOCATION_SLA_SECONDS,
+  regionId?: string,
 ): Promise<DriverRecord[]> {
   const eligible: DriverRecord[] = [];
 
   for (const driver of drivers) {
     if (!driver.isOnline || driver.operationalStatus !== 'online') continue;
     if (driver.activeRideId) continue;
-    if (!isLocationFresh(driver)) continue;
+    if (!isLocationFresh(driver, locationSlaSeconds)) continue;
     if (!passesCategoryHardRules(driver, ride)) continue;
 
     const distanceM = haversineMeters(ride.pickupLat, ride.pickupLng, driver.lat!, driver.lng!);
     if (distanceM > radiusM) continue;
 
     if (await isPairBlocked(passenger.passengerId, driver.userId)) continue;
+
+    const productionOk = await validateDriverCategoryProduction({
+      driverId: driver.userId,
+      categoryCode: ride.categoryCode,
+      regionId,
+      reputationScore: driver.reputationScore,
+      completedRides: driver.completedRides,
+    });
+    if (!productionOk.ok) continue;
+
     if (!(await isDriverCompliantForCategory(driver.userId, ride.categoryCode))) continue;
 
     if (ride.categoryCode === 'entrega') {

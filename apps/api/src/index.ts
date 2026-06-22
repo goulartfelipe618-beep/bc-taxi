@@ -8,6 +8,7 @@ import { attachWebSocketServer } from './realtime/wsServer.js';
 import { wsHub } from './realtime/wsHub.js';
 import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
+import { clientRouter } from './routes/client.js';
 import { categoriesRouter, configRouter, quotesRouter } from './routes/catalog.js';
 import { fraudRouter } from './routes/fraud.js';
 import { notificationsRouter } from './routes/notifications.js';
@@ -65,6 +66,7 @@ async function main() {
   });
 
   app.use('/auth', authRouter);
+  app.use('/v1/client', clientRouter);
   app.use('/v1/categories', categoriesRouter);
   app.use('/v1/quotes', quotesRouter);
   app.use('/v1/pricing', pricingRouter);

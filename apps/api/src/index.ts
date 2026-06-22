@@ -40,6 +40,7 @@ import { startOpsMetricsJanitor } from './observability/opsMetricsService.js';
 import { startLiveRouteMonitor } from './route/liveRouteMonitorService.js';
 import { startDynamicPricingScheduler } from './pricing/dynamicPricingService.js';
 import { startMatchTimeoutJanitor } from './match/timeoutHandlerService.js';
+import { startPspRetryJanitor } from './payments/pspProductionService.js';
 
 async function main() {
   await migrate();
@@ -109,6 +110,7 @@ async function main() {
   const stopLiveRouteMonitor = startLiveRouteMonitor();
   const stopDynamicPricing = startDynamicPricingScheduler();
   const stopMatchTimeoutJanitor = startMatchTimeoutJanitor();
+  const stopPspRetryJanitor = startPspRetryJanitor();
 
   server.listen(config.port, () => {
     console.log(`BC Taxi API running on http://localhost:${config.port} (WS /ws)`);
@@ -123,6 +125,7 @@ async function main() {
     clearInterval(stopLiveRouteMonitor);
     clearInterval(stopDynamicPricing);
     stopMatchTimeoutJanitor?.();
+    stopPspRetryJanitor?.();
     if (!config.useMemoryDb && pool) await pool.end();
     process.exit(0);
   });

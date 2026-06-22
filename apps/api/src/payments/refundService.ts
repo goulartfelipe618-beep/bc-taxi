@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { emitEvent } from '../realtime/eventBus.js';
-import { getPspProvider } from './psp/pspProvider.js';
 import { getPaymentIntent, updatePaymentIntentStatus } from './paymentStore.js';
+import { resolvePspProviderForMethod } from './pspProductionService.js';
 import {
   createRefundRequest,
   getRefundByIdempotencyKey,
@@ -56,7 +56,7 @@ export async function requestPaymentRefund(params: {
     throw new Error('Sem referência PSP para estorno');
   }
 
-  const psp = getPspProvider();
+  const { provider: psp } = await resolvePspProviderForMethod(intent.paymentMethodType);
   const result = await psp.refund({
     providerRef: intent.providerRef,
     amountCentavos: amount,

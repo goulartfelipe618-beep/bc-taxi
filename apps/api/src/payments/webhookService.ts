@@ -139,3 +139,102 @@ export async function handlePspWebhookWithIdempotency(
   await markWebhookProcessed(webhookEvent.id, result);
   return result;
 }
+
+type MercadoPagoWebhook = {
+  id?: number | string;
+  type?: string;
+  action?: string;
+  data?: { id?: string | number };
+};
+
+async function handleProviderPaymentApproved(providerRef: string) {
+  const intent = await getPaymentIntentByProviderRef(providerRef);
+  if (!intent) return { handled: false, reason: 'intent_not_found', providerRef };
+
+  if (intent.status === 'authorized' || intent.status === 'captured') {
+    return { handled: true, duplicate: true, intentId: intent.id };
+  }
+
+  if (intent.paymentMethodType === 'pix') {
+    const { getPixForIntent } = await import('./pixStore.js');
+    const pix = await getPixForIntent(intent.id);
+    if (pix) {
+      const { confirmPixPayment } = await import('./pixService.js');
+      return confirmPixPayment(pix.txid, `psp-${providerRef}`);
+    }
+  }
+
+  const updated = await updatePaymentIntentStatus(intent.id, 'authorized');
+  return { handled: true, intent: updated, intentId: intent.id };
+}
+
+export function verifyMercadoPagoWebhookSignature(rawBody: string, signatureHeader?: string): boolean {
+  if (!config.pspWebhookSecret) return config.useMemoryDb;
+  if (!signatureHeader) return false;
+  const expected = createHmac('sha256', config.pspWebhookSecret).update(rawBody).digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
+  } catch {
+    return false;
+  }
+}
+
+export async function handleMercadoPagoWebhook(rawBody: string) {
+  const event = JSON.parse(rawBody) as MercadoPagoWebhook;
+  const eventId = String(event.id ?? event.data?.id ?? `mp-${Date.now()}`);
+  const eventType = `${event.type ?? 'payment'}.${event.action ?? 'updated'}`;
+
+  const { event: webhookEvent, duplicate } = await claimWebhookEvent({
+    provider: 'mercadopago',
+    eventId,
+    eventType,
+    payload: event as unknown as Record<string, unknown>,
+  });
+
+  if (duplicate) {
+    const cached = await getWebhookEventResult('mercadopago', eventId);
+    return { ...(cached ?? { handled: true }), duplicate: true };
+  }
+
+  let result: Record<string, unknown> = { handled: false, ignored: true, eventType };
+  const paymentId = event.data?.id != null ? String(event.data.id) : undefined;
+  if (paymentId && (event.action === 'payment.updated' || event.type === 'payment')) {
+    result = await handleProviderPaymentApproved(paymentId);
+  }
+
+  await markWebhookProcessed(webhookEvent.id, result);
+  return result;
+}
+
+type PagarmeWebhook = {
+  id?: string;
+  type?: string;
+  data?: { id?: string; status?: string };
+};
+
+export async function handlePagarmeWebhook(rawBody: string) {
+  const event = JSON.parse(rawBody) as PagarmeWebhook;
+  const eventId = event.id ?? `pg-${event.data?.id ?? Date.now()}`;
+  const eventType = event.type ?? 'unknown';
+
+  const { event: webhookEvent, duplicate } = await claimWebhookEvent({
+    provider: 'pagarme',
+    eventId,
+    eventType,
+    payload: event as unknown as Record<string, unknown>,
+  });
+
+  if (duplicate) {
+    const cached = await getWebhookEventResult('pagarme', eventId);
+    return { ...(cached ?? { handled: true }), duplicate: true };
+  }
+
+  let result: Record<string, unknown> = { handled: false, ignored: true, eventType };
+  const chargeId = event.data?.id;
+  if (chargeId && (eventType === 'charge.paid' || event.data?.status === 'paid')) {
+    result = await handleProviderPaymentApproved(chargeId);
+  }
+
+  await markWebhookProcessed(webhookEvent.id, result);
+  return result;
+}

@@ -16,7 +16,7 @@ async function main() {
   const userId = randomUUID();
   const rideId = randomUUID();
 
-  const config = getPaymentPublicConfig();
+  const config = await getPaymentPublicConfig();
   if (!config.supportedMethods.includes('pix')) throw new Error('Config missing pix');
   console.log('Payment config:', config.pspProvider, 'tokenization:', config.tokenizationEnabled);
 

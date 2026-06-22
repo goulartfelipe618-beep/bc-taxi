@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { config } from '../config.js';
-import { getPspProvider } from './psp/pspProvider.js';
+import { resolvePspProviderForMethod } from './pspProductionService.js';
 import {
   getPaymentMethod,
   getMethodPspDetails,
@@ -24,7 +24,7 @@ function fingerprintToken(userId: string, provider: string, token: string): stri
 }
 
 export async function tokenizePaymentMethod(input: TokenizePaymentMethodInput): Promise<PaymentMethodRecord> {
-  const psp = getPspProvider();
+  const { provider: psp } = await resolvePspProviderForMethod(input.methodType);
   const provider = psp.name;
   const fingerprint = fingerprintToken(input.userId, provider, input.providerToken);
 
@@ -56,14 +56,21 @@ export async function resolveMethodPspDetails(
   return { method, psp: pspDetails };
 }
 
-export function getPaymentPublicConfig() {
+export async function getPaymentPublicConfig() {
   const provider = config.pspProvider;
+  const { listPspRoutingConfigs } = await import('./pspProductionService.js');
+  const routing = await listPspRoutingConfigs(config.defaultServiceRegionId);
   return {
     pspProvider: provider,
-    production: provider !== 'demo',
+    production: provider !== 'demo' || routing.some((r) => r.providerCode !== 'demo'),
     tokenizationEnabled: provider === 'stripe' || provider === 'mercadopago' || provider === 'pagarme' || config.useMemoryDb,
     stripePublishableKey: provider === 'stripe' ? config.stripePublishableKey || undefined : undefined,
     supportedMethods: ['pix', 'card', 'debit', 'cash'] as PaymentMethodType[],
+    routing: routing.map((r) => ({
+      methodType: r.methodType,
+      provider: r.providerCode,
+      configVersion: r.configVersion,
+    })),
   };
 }
 

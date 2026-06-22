@@ -14,8 +14,12 @@ import { getPaymentPublicConfig, tokenizePaymentMethod } from '../payments/token
 import {
   handlePspWebhookWithIdempotency,
   handleStripeWebhook,
+  handleMercadoPagoWebhook,
+  handlePagarmeWebhook,
   verifyStripeWebhookSignature,
+  verifyMercadoPagoWebhookSignature,
 } from '../payments/webhookService.js';
+import { getPspProductionHealth } from '../payments/pspProductionService.js';
 import { config } from '../config.js';
 import { toPublicPaymentIntent, toPublicPaymentMethod } from '../payments/types.js';
 
@@ -102,12 +106,56 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
 
 export const paymentsRouter = Router();
 
-paymentsRouter.get('/config', (_req, res) => {
-  res.json(getPaymentPublicConfig());
+paymentsRouter.get('/config', async (_req, res) => {
+  res.json(await getPaymentPublicConfig());
 });
+
+export async function mercadoPagoWebhookHandler(req: Request, res: Response) {
+  const rawBody =
+    Buffer.isBuffer(req.body) ? req.body.toString('utf8') : typeof req.body === 'string' ? req.body : '';
+  const signature = req.header('x-signature') ?? req.header('x-psp-signature');
+
+  if (!verifyMercadoPagoWebhookSignature(rawBody, signature ?? undefined)) {
+    res.status(401).json({ error: 'Assinatura Mercado Pago inválida' });
+    return;
+  }
+
+  try {
+    const result = await handleMercadoPagoWebhook(rawBody);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha no webhook Mercado Pago';
+    res.status(400).json({ error: message });
+  }
+}
+
+export async function pagarmeWebhookHandler(req: Request, res: Response) {
+  const rawBody =
+    Buffer.isBuffer(req.body) ? req.body.toString('utf8') : typeof req.body === 'string' ? req.body : '';
+  const signature = req.header('x-hub-signature') ?? req.header('x-psp-signature');
+
+  if (!verifyMercadoPagoWebhookSignature(rawBody, signature ?? undefined)) {
+    res.status(401).json({ error: 'Assinatura Pagar.me inválida' });
+    return;
+  }
+
+  try {
+    const result = await handlePagarmeWebhook(rawBody);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Falha no webhook Pagar.me';
+    res.status(400).json({ error: message });
+  }
+}
 
 paymentsRouter.post('/webhooks/psp', express.raw({ type: 'application/json' }), pspWebhookHandler);
 paymentsRouter.post('/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+paymentsRouter.post('/webhooks/mercadopago', express.raw({ type: 'application/json' }), mercadoPagoWebhookHandler);
+paymentsRouter.post('/webhooks/pagarme', express.raw({ type: 'application/json' }), pagarmeWebhookHandler);
+
+paymentsRouter.get('/psp/health', async (_req, res) => {
+  res.json(await getPspProductionHealth());
+});
 
 paymentsRouter.use(authMiddleware);
 

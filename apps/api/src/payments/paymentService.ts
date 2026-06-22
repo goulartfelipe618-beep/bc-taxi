@@ -4,7 +4,7 @@ import { quoteWithEngine } from '../pricing/pricingEngineService.js';
 import type { RideCategoryCode } from '../domain/types.js';
 import { recordPaymentSettlement } from './ledgerService.js';
 import { createPixCharge, getPixForIntent, toPublicPixCharge } from './pixStore.js';
-import { getPspProvider } from './psp/pspProvider.js';
+import { resolvePspProviderForMethod } from './pspProductionService.js';
 import {
   attachIntentToRideStore,
   createPaymentIntent,
@@ -58,7 +58,7 @@ export async function authorizeRidePayment(params: {
     };
   }
 
-  const psp = getPspProvider();
+  const { provider: psp } = await resolvePspProviderForMethod(method.methodType);
   const pspDetails = await getMethodPspDetails(method.id);
   const pspResult = await psp.authorize({
     amountCentavos: amount,
@@ -152,7 +152,7 @@ export async function cancelRidePayment(rideId: string) {
   if (intent.status === 'voided' || intent.status === 'captured') return intent;
 
   if (intent.providerRef) {
-    const psp = getPspProvider();
+    const { provider: psp } = await resolvePspProviderForMethod(intent.paymentMethodType);
     await psp.void({ providerRef: intent.providerRef, idempotencyKey: `void-${intent.id}` });
     await recordPaymentTransaction({
       paymentIntentId: intent.id,
@@ -187,7 +187,7 @@ export async function captureRidePayment(
   const captureAmount = amountCentavos ?? intent.amountAuthorizedCentavos;
 
   if (intent.paymentMethodType !== 'cash' && intent.providerRef) {
-    const psp = getPspProvider();
+    const { provider: psp, providerCode } = await resolvePspProviderForMethod(intent.paymentMethodType);
     const captureResult = await psp.capture({
       providerRef: intent.providerRef,
       amountCentavos: captureAmount,
@@ -195,14 +195,25 @@ export async function captureRidePayment(
     });
 
     if (captureResult.status === 'failed') {
-      await updatePaymentIntentStatus(intent.id, 'failed', {
-        failureReason: captureResult.failureReason ?? 'Capture failed',
+      const { enqueuePspRetryJob } = await import('./pspProductionService.js');
+      await enqueuePspRetryJob({
+        jobType: 'capture',
+        paymentIntentId: intent.id,
+        provider: providerCode,
+        providerRef: intent.providerRef,
+        idempotencyKey: `retry-capture-${intent.id}`,
+        payloadJson: {
+          rideId,
+          amountCentavos: captureAmount,
+          categoryCode: rideContext?.categoryCode,
+          driverUserId: rideContext?.driverUserId,
+        },
       });
-      void emitEvent('PAYMENT_FAILED', 'payment', intent.id, { reason: captureResult.failureReason }, {
+      void emitEvent('PAYMENT_FAILED', 'payment', intent.id, { reason: captureResult.failureReason, retry: true }, {
         rideId,
         userIds: [intent.userId],
       });
-      throw new Error(captureResult.failureReason ?? 'Falha na captura');
+      throw new Error(captureResult.failureReason ?? 'Falha na captura (reprocessamento agendado)');
     }
 
     await recordPaymentTransaction({

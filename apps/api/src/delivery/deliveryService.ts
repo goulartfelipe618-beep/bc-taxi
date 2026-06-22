@@ -7,6 +7,13 @@ import { quoteWithDynamicPricing } from '../pricing/dynamicPricingService.js';
 import { authorizeRidePayment, attachIntentToRide } from '../payments/paymentService.js';
 import { DEMO_PAYMENT_METHOD_IDS } from '../payments/paymentStore.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import {
+  computeDeliveryProductionFare,
+  getDeliveryProductionConfig,
+  recordDeliveryWaitMinutes,
+  settleDeliveryJobFare,
+  validatePackageDeclarationProduction,
+} from './deliveryProductionService.js';
 
 export type DeliveryJobStatus = 'created' | 'pickup_confirmed' | 'in_transit' | 'delivered' | 'cancelled';
 
@@ -24,6 +31,10 @@ export interface DeliveryJobRecord {
   waitMinutesDropoff: number;
   insuranceFeeCentavos: number;
   estimatedFareCentavos?: number;
+  finalFareCentavos?: number;
+  waitFeePickupCentavos?: number;
+  waitFeeDropoffCentavos?: number;
+  policyVersion?: string;
   createdAt: Date;
 }
 
@@ -54,20 +65,6 @@ export function validatePackageDeclaration(description: string): { ok: boolean; 
   return { ok: true };
 }
 
-function computeDeliveryAddons(input: {
-  isFragile: boolean;
-  isPriority: boolean;
-  declaredValueCentavos?: number;
-}) {
-  let addons = 0;
-  if (input.isFragile) addons += 300;
-  if (input.isPriority) addons += 500;
-  if (input.declaredValueCentavos && input.declaredValueCentavos > 0) {
-    addons += Math.min(Math.round(input.declaredValueCentavos * 0.02), 2000);
-  }
-  return addons;
-}
-
 function mapJob(row: Record<string, unknown>): DeliveryJobRecord {
   return {
     id: row.id as string,
@@ -84,6 +81,12 @@ function mapJob(row: Record<string, unknown>): DeliveryJobRecord {
     waitMinutesDropoff: Number(row.wait_minutes_dropoff ?? 0),
     insuranceFeeCentavos: Number(row.insurance_fee_centavos ?? 0),
     estimatedFareCentavos: row.estimated_fare_centavos != null ? Number(row.estimated_fare_centavos) : undefined,
+    finalFareCentavos: row.final_fare_centavos != null ? Number(row.final_fare_centavos) : undefined,
+    waitFeePickupCentavos:
+      row.wait_fee_pickup_centavos != null ? Number(row.wait_fee_pickup_centavos) : undefined,
+    waitFeeDropoffCentavos:
+      row.wait_fee_dropoff_centavos != null ? Number(row.wait_fee_dropoff_centavos) : undefined,
+    policyVersion: (row.policy_version as string) ?? undefined,
     createdAt: new Date(row.created_at as string),
   };
 }
@@ -100,6 +103,10 @@ export function toPublicDeliveryJob(job: DeliveryJobRecord, pins?: { pickupPin?:
     status: job.status,
     insuranceFeeCentavos: job.insuranceFeeCentavos,
     estimatedFareCentavos: job.estimatedFareCentavos,
+    finalFareCentavos: job.finalFareCentavos,
+    waitFeePickupCentavos: job.waitFeePickupCentavos,
+    waitFeeDropoffCentavos: job.waitFeeDropoffCentavos,
+    policyVersion: job.policyVersion,
     pickupPin: pins?.pickupPin,
     dropoffPin: pins?.dropoffPin,
     createdAt: job.createdAt.toISOString(),
@@ -123,14 +130,12 @@ export async function createDeliveryJob(input: {
   durationMin?: number;
   paymentMethodId?: string;
 }) {
-  const pkgCheck = validatePackageDeclaration(input.packageDescription);
-  if (!pkgCheck.ok) throw new Error(pkgCheck.reason ?? 'Pacote inválido');
-
-  const insuranceFeeCentavos = computeDeliveryAddons({
-    isFragile: input.isFragile ?? false,
-    isPriority: input.isPriority ?? false,
-    declaredValueCentavos: input.declaredValueCentavos,
+  const prodCfg = await getDeliveryProductionConfig();
+  const pkgCheck = validatePackageDeclarationProduction(input.packageDescription, {
+    declaredWeightKg: input.declaredWeightKg,
+    maxWeightKg: prodCfg.maxDeclaredWeightKg,
   });
+  if (!pkgCheck.ok) throw new Error(pkgCheck.reason ?? 'Pacote inválido');
 
   let baseFare = 3500;
   if (input.distanceKm && input.durationMin) {
@@ -140,7 +145,18 @@ export async function createDeliveryJob(input: {
     });
     baseFare = quote.passengerFareCentavos;
   }
-  const estimatedFareCentavos = baseFare + insuranceFeeCentavos;
+
+  const fareBreakdown = computeDeliveryProductionFare(
+    baseFare,
+    {
+      isFragile: input.isFragile ?? false,
+      isPriority: input.isPriority ?? false,
+      declaredValueCentavos: input.declaredValueCentavos,
+    },
+    prodCfg,
+  );
+  const insuranceFeeCentavos = fareBreakdown.insuranceFeeCentavos;
+  const estimatedFareCentavos = fareBreakdown.estimatedFareCentavos;
 
   const paymentMethodId = input.paymentMethodId ?? DEMO_PAYMENT_METHOD_IDS.pix;
   const { intent } = await authorizeRidePayment({
@@ -185,6 +201,7 @@ export async function createDeliveryJob(input: {
     waitMinutesDropoff: 0,
     insuranceFeeCentavos,
     estimatedFareCentavos,
+    policyVersion: prodCfg.configVersion,
     createdAt: new Date(),
   };
 
@@ -195,8 +212,9 @@ export async function createDeliveryJob(input: {
     const { rows } = await pool.query(
       `INSERT INTO delivery_jobs (
         id, ride_id, requester_id, package_description, declared_weight_kg, declared_value_centavos,
-        is_fragile, is_priority, pickup_pin_hash, dropoff_pin_hash, insurance_fee_centavos, status
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'created') RETURNING *`,
+        is_fragile, is_priority, pickup_pin_hash, dropoff_pin_hash, insurance_fee_centavos,
+        estimated_fare_centavos, policy_version, status
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'created') RETURNING *`,
       [
         job.id,
         job.rideId,
@@ -209,6 +227,8 @@ export async function createDeliveryJob(input: {
         pickupHash,
         dropoffHash,
         insuranceFeeCentavos,
+        estimatedFareCentavos,
+        prodCfg.configVersion,
       ],
     );
     Object.assign(job, mapJob(rows[0]));
@@ -279,6 +299,14 @@ export async function confirmDeliveryProof(input: {
       throw new Error('Confirme a coleta antes da entrega');
     }
     job.status = 'delivered';
+    const settlement = await settleDeliveryJobFare(
+      job.id,
+      job.estimatedFareCentavos ?? job.insuranceFeeCentavos,
+    );
+    job.finalFareCentavos = settlement.finalFareCentavos;
+    job.waitFeePickupCentavos = settlement.waitPickup;
+    job.waitFeeDropoffCentavos = settlement.waitDropoff;
+    job.policyVersion = settlement.policyVersion;
   }
 
   if (config.useMemoryDb) {
@@ -308,6 +336,33 @@ export async function confirmDeliveryProof(input: {
   );
 
   return job;
+}
+
+export async function recordDeliveryJobWait(input: {
+  jobId: string;
+  userId: string;
+  phase: 'pickup' | 'dropoff';
+  waitMinutes: number;
+}) {
+  const job = await getJob(input.jobId);
+  if (!job) throw new Error('Entrega não encontrada');
+  if (job.requesterId !== input.userId) throw new Error('Não autorizado');
+  if (input.waitMinutes < 0 || input.waitMinutes > 180) {
+    throw new Error('Tempo de espera inválido');
+  }
+  const result = await recordDeliveryWaitMinutes({
+    jobId: input.jobId,
+    phase: input.phase,
+    waitMinutes: input.waitMinutes,
+  });
+  if (input.phase === 'pickup') {
+    job.waitFeePickupCentavos = result.feeCentavos;
+  } else {
+    job.waitFeeDropoffCentavos = result.feeCentavos;
+  }
+  job.waitMinutesPickup = input.phase === 'pickup' ? input.waitMinutes : job.waitMinutesPickup;
+  job.waitMinutesDropoff = input.phase === 'dropoff' ? input.waitMinutes : job.waitMinutesDropoff;
+  return { job, ...result };
 }
 
 export async function listRequesterDeliveries(requesterId: string) {

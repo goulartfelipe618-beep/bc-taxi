@@ -117,6 +117,11 @@ export async function filterEligibleDrivers(
     if (await isPairBlocked(passenger.passengerId, driver.userId)) continue;
     if (!(await isDriverCompliantForCategory(driver.userId, ride.categoryCode))) continue;
 
+    if (ride.categoryCode === 'entrega') {
+      const { isDriverRestrictedForDelivery } = await import('../delivery/deliveryProductionService.js');
+      if (await isDriverRestrictedForDelivery(driver.userId)) continue;
+    }
+
     const needCode = resolveRideNeedCode(ride);
     if (needCode && !(await isDriverCompatibleWithNeed(driver, needCode))) continue;
 

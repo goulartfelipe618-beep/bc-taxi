@@ -1,6 +1,12 @@
 import type { WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
+import {
+  getReplayEventsSince,
+  isCriticalRealtimeEvent,
+  recordWebSocketCheckpoint,
+  recordWebSocketEventAck,
+} from './realtimeProductionService.js';
 import type { RealtimeEvent } from './types.js';
 
 interface ClientState {
@@ -16,17 +22,37 @@ function channelKey(kind: 'user' | 'ride' | 'driver', id: string) {
   return `${kind}:${id}`;
 }
 
+async function replayMissedEvents(ws: WebSocket, userId: string, checkpoint: string) {
+  const events = await getReplayEventsSince(userId, checkpoint);
+  for (const event of events) {
+    ws.send(
+      JSON.stringify({
+        type: 'event',
+        event,
+        replay: true,
+        requiresAck: isCriticalRealtimeEvent(event.eventType),
+      }),
+    );
+  }
+  ws.send(JSON.stringify({ type: 'replay_complete', count: events.length, checkpoint }));
+}
+
 export const wsHub = {
-  register(ws: WebSocket, token: string) {
+  register(ws: WebSocket, token: string, checkpoint?: string) {
     try {
       const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; role?: string };
+      const initialCheckpoint = checkpoint ?? new Date(0).toISOString();
       clients.set(ws, {
         userId: decoded.userId,
         role: decoded.role ?? 'passenger',
         rideIds: new Set(),
-        lastCheckpoint: new Date(0).toISOString(),
+        lastCheckpoint: initialCheckpoint,
       });
-      ws.send(JSON.stringify({ type: 'connected', userId: decoded.userId }));
+      ws.send(JSON.stringify({ type: 'connected', userId: decoded.userId, checkpoint: initialCheckpoint }));
+
+      if (checkpoint) {
+        void replayMissedEvents(ws, decoded.userId, checkpoint);
+      }
     } catch {
       ws.close(4401, 'Unauthorized');
     }
@@ -39,9 +65,19 @@ export const wsHub = {
     ws.send(JSON.stringify({ type: 'subscribed', channel: channelKey('ride', rideId) }));
   },
 
-  setCheckpoint(ws: WebSocket, checkpoint: string) {
+  async setCheckpoint(ws: WebSocket, checkpoint: string) {
     const state = clients.get(ws);
-    if (state) state.lastCheckpoint = checkpoint;
+    if (!state) return;
+    state.lastCheckpoint = checkpoint;
+    await recordWebSocketCheckpoint(state.userId, checkpoint);
+    ws.send(JSON.stringify({ type: 'checkpoint_saved', checkpoint }));
+  },
+
+  async ackEvent(ws: WebSocket, eventId: string) {
+    const state = clients.get(ws);
+    if (!state) return;
+    await recordWebSocketEventAck(state.userId, eventId);
+    ws.send(JSON.stringify({ type: 'ack_received', eventId }));
   },
 
   unregister(ws: WebSocket) {
@@ -49,7 +85,8 @@ export const wsHub = {
   },
 
   broadcast(event: RealtimeEvent) {
-    const payload = JSON.stringify({ type: 'event', event });
+    const requiresAck = isCriticalRealtimeEvent(event.eventType);
+    const payload = JSON.stringify({ type: 'event', event, requiresAck });
     const targets = new Set<WebSocket>();
 
     for (const [ws, state] of clients.entries()) {

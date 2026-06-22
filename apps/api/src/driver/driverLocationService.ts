@@ -3,6 +3,11 @@ import { config } from '../config.js';
 import { pool } from '../db.js';
 import { checkGpsIntegrity } from '../fraud/fraudService.js';
 import { emitEvent } from '../realtime/eventBus.js';
+import {
+  getRealtimeProductionConfig,
+  shouldBroadcastDriverLocationToUi,
+  smoothDriverLocationForUi,
+} from '../realtime/realtimeProductionService.js';
 import { resolveDriverActiveRideId } from '../ride/rideTrackingService.js';
 import { memoryMatchStore, useMemory } from '../stores/memoryMatchStore.js';
 
@@ -117,42 +122,37 @@ export async function updateDriverLocation(input: {
     }
     const session = memorySessions.get(input.driverId);
     if (session) session.lastHeartbeatAt = new Date();
-    const { syncAirportQueueFromLocation } = await import('../airport/airportQueueService.js');
-    void syncAirportQueueFromLocation(input.driverId, input.lat, input.lng);
-    return { ok: true, sessionId: session?.sessionId ?? null };
-  }
+  } else {
+    const sessionId = await getActiveSessionId(input.driverId);
+    const now = new Date();
 
-  const sessionId = await getActiveSessionId(input.driverId);
-  const now = new Date();
-
-  await pool.query(
-    `UPDATE drivers SET
-      lat = $2,
-      lng = $3,
-      heading = COALESCE($4, heading),
-      location_updated_at = $5,
-      last_heartbeat_at = $5
-     WHERE user_id = $1`,
-    [input.driverId, input.lat, input.lng, input.heading ?? null, now],
-  );
-
-  if (sessionId) {
     await pool.query(
-      `UPDATE driver_online_sessions SET
-        last_lat = $2,
-        last_lng = $3,
-        last_heartbeat_at = $4,
-        heartbeat_count = heartbeat_count + 1
-       WHERE id = $1`,
-      [sessionId, input.lat, input.lng, now],
+      `UPDATE drivers SET
+        lat = $2,
+        lng = $3,
+        heading = COALESCE($4, heading),
+        location_updated_at = $5,
+        last_heartbeat_at = $5
+       WHERE user_id = $1`,
+      [input.driverId, input.lat, input.lng, input.heading ?? null, now],
     );
-  }
 
-  if (input.persistSample !== false) {
-    const lastSample = lastSampleAtByDriver.get(input.driverId) ?? 0;
-    if (Date.now() - lastSample >= LOCATION_SAMPLE_MIN_INTERVAL_MS) {
-      lastSampleAtByDriver.set(input.driverId, Date.now());
-      if (!useMemory()) {
+    if (sessionId) {
+      await pool.query(
+        `UPDATE driver_online_sessions SET
+          last_lat = $2,
+          last_lng = $3,
+          last_heartbeat_at = $4,
+          heartbeat_count = heartbeat_count + 1
+         WHERE id = $1`,
+        [sessionId, input.lat, input.lng, now],
+      );
+    }
+
+    if (input.persistSample !== false) {
+      const lastSample = lastSampleAtByDriver.get(input.driverId) ?? 0;
+      if (Date.now() - lastSample >= LOCATION_SAMPLE_MIN_INTERVAL_MS) {
+        lastSampleAtByDriver.set(input.driverId, Date.now());
         await pool.query(
           `INSERT INTO driver_location_samples (driver_id, session_id, lat, lng, heading)
            VALUES ($1, $2, $3, $4, $5)`,
@@ -161,6 +161,10 @@ export async function updateDriverLocation(input: {
       }
     }
   }
+
+  const sessionId = useMemory()
+    ? (memorySessions.get(input.driverId)?.sessionId ?? null)
+    : await getActiveSessionId(input.driverId);
 
   const rideId = input.rideId ?? (await resolveDriverActiveRideId(input.driverId));
 
@@ -175,18 +179,30 @@ export async function updateDriverLocation(input: {
     );
   }
 
-  await emitEvent(
-    'DRIVER_LOCATION_UPDATED',
-    'driver',
-    input.driverId,
-    {
-      lat: input.lat,
-      lng: input.lng,
-      heading: input.heading,
-      rideId,
-    },
-    { driverId: input.driverId, rideId },
-  );
+  const prodCfg = await getRealtimeProductionConfig();
+  if (shouldBroadcastDriverLocationToUi(input.driverId, rideId, prodCfg)) {
+    const uiCoords = smoothDriverLocationForUi(
+      input.driverId,
+      input.lat,
+      input.lng,
+      prodCfg.gpsSmoothFactor,
+    );
+    await emitEvent(
+      'DRIVER_LOCATION_UPDATED',
+      'driver',
+      input.driverId,
+      {
+        lat: uiCoords.lat,
+        lng: uiCoords.lng,
+        rawLat: input.lat,
+        rawLng: input.lng,
+        smoothed: true,
+        heading: input.heading,
+        rideId,
+      },
+      { driverId: input.driverId, rideId },
+    );
+  }
 
   const { syncAirportQueueFromLocation } = await import('../airport/airportQueueService.js');
   void syncAirportQueueFromLocation(input.driverId, input.lat, input.lng);

@@ -92,4 +92,8 @@ export async function getEventsSince(sinceIso: string, userId: string, limit = 5
   }));
 }
 
+export function __testGetMemoryOutbox() {
+  return memoryOutbox;
+}
+
 export { config };

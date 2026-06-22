@@ -1,5 +1,9 @@
 import { config } from '../config.js';
 import type { RealtimeEvent, RealtimeEventType } from '../realtime/types.js';
+import {
+  buildPushDedupKey,
+  shouldSkipPushDueToDedup,
+} from '../realtime/realtimeProductionService.js';
 import { listActivePushTokens, logPushNotification } from './pushTokenStore.js';
 
 export interface PushPayload {
@@ -32,6 +36,26 @@ const templates: Partial<Record<RealtimeEventType, (event: RealtimeEvent) => Pus
   PAYMENT_FAILED: () => ({
     title: 'Falha no pagamento',
     body: 'Atualize o método de pagamento para continuar.',
+  }),
+  RIDE_OFFERED: () => ({
+    title: 'Nova corrida disponível',
+    body: 'Toque para ver os detalhes da oferta.',
+  }),
+  DELIVERY_CREATED: () => ({
+    title: 'Entrega solicitada',
+    body: 'Estamos buscando um entregador.',
+  }),
+  DELIVERY_PICKUP_CONFIRMED: () => ({
+    title: 'Coleta confirmada',
+    body: 'O pacote foi coletado e está a caminho.',
+  }),
+  DELIVERY_COMPLETED: () => ({
+    title: 'Entrega concluída',
+    body: 'Seu pacote foi entregue com sucesso.',
+  }),
+  GPS_INTEGRITY_ALERT: () => ({
+    title: 'Alerta de localização',
+    body: 'Verifique o GPS do dispositivo para continuar operando.',
   }),
 };
 
@@ -69,11 +93,26 @@ export async function dispatchPushForEvent(event: RealtimeEvent) {
   const userIds = event.userIds ?? [];
   const driverId = event.driverId;
   const targets = new Set(userIds);
-  if (driverId && ['RIDE_OFFERED', 'RIDE_DRIVER_ASSIGNED'].includes(event.eventType)) {
+  if (driverId && ['RIDE_OFFERED', 'RIDE_DRIVER_ASSIGNED', 'GPS_INTEGRITY_ALERT'].includes(event.eventType)) {
     targets.add(driverId);
   }
 
+  const dedupKey = buildPushDedupKey(event);
+
   for (const userId of targets) {
+    if (await shouldSkipPushDueToDedup(userId, event.eventType, dedupKey)) {
+      await logPushNotification({
+        userId,
+        eventType: event.eventType,
+        title: payload.title,
+        body: payload.body,
+        status: 'skipped',
+        provider: config.pushProvider,
+        payload: { reason: 'dedup', rideId: event.rideId, dedupKey },
+      });
+      continue;
+    }
+
     const tokens = await listActivePushTokens(userId);
     if (tokens.length === 0) {
       await logPushNotification({

@@ -14,6 +14,7 @@ export interface PushTokenRecord {
 }
 
 const memoryTokens = new Map<string, PushTokenRecord[]>();
+const memoryPushLog: Array<{ userId?: string; eventType: string; status: string; payload?: Record<string, unknown> }> = [];
 
 export async function upsertPushToken(input: {
   userId: string;
@@ -87,7 +88,15 @@ export async function logPushNotification(input: {
   providerRef?: string;
   payload?: Record<string, unknown>;
 }) {
-  if (config.useMemoryDb) return { id: randomUUID() };
+  if (config.useMemoryDb) {
+    memoryPushLog.push({
+      userId: input.userId,
+      eventType: input.eventType,
+      status: input.status,
+      payload: input.payload,
+    });
+    return { id: randomUUID() };
+  }
 
   const { rows } = await pool.query(
     `INSERT INTO push_notification_log
@@ -125,4 +134,12 @@ export async function listUserNotifications(userId: string, limit = 30) {
     createdAt: (r.created_at as Date).toISOString(),
     sentAt: r.sent_at ? (r.sent_at as Date).toISOString() : undefined,
   }));
+}
+
+export function __testGetMemoryPushLog() {
+  return memoryPushLog;
+}
+
+export function __testResetMemoryPushLog() {
+  memoryPushLog.length = 0;
 }

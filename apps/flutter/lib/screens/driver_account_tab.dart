@@ -5,6 +5,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/driver_account_service.dart';
 import 'driver_compliance_screen.dart';
+import 'driver_reputation_screen.dart';
 
 class DriverAccountTab extends StatefulWidget {
   const DriverAccountTab({super.key});
@@ -123,6 +124,16 @@ class _DriverAccountTabState extends State<DriverAccountTab> {
                     : null,
               ),
             ),
+          ListTile(
+            leading: const Icon(Icons.star_outline),
+            title: const Text('Reputação'),
+            subtitle: Text('${profile.rating?.toStringAsFixed(2) ?? '—'} · ${profile.tier ?? '—'}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DriverReputationScreen()),
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.description_outlined),
             title: const Text('Veículo e documentos'),

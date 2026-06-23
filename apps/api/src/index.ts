@@ -25,7 +25,7 @@ import { corporateRouter } from './routes/corporate.js';
 import { deliveriesRouter } from './routes/deliveries.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
 import { driverPayoutRouter } from './routes/driverPayout.js';
-import { driverAccountRouter } from './routes/driverAccount.js';
+import { driverReputationRouter } from './routes/driverReputation.js';
 import { driverActivityRouter, passengerActivityRouter } from './routes/rideActivity.js';
 import { startHeartbeatJanitor } from './driver/driverLocationService.js';
 import { eventsRouter } from './routes/events.js';
@@ -103,6 +103,7 @@ async function main() {
   app.use('/v1/driver/fleet', driverFleetRouter);
   app.use('/v1/driver/payout', driverPayoutRouter);
   app.use('/v1/driver/account', driverAccountRouter);
+  app.use('/v1/driver/reputation', driverReputationRouter);
   app.use('/v1/driver/activity', driverActivityRouter);
 
   app.use((_req, res) => {

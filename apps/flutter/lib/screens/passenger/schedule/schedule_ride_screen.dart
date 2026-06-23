@@ -5,6 +5,7 @@ import '../../../theme/passenger_theme.dart';
 import '../../../widgets/passenger/bc_widgets.dart';
 import '../passenger_routes.dart';
 import '../widgets/passenger_sheets.dart';
+import 'passenger_schedules_screen.dart';
 
 class ScheduleRideScreen extends StatefulWidget {
   const ScheduleRideScreen({super.key, this.destination});
@@ -39,6 +40,15 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
         foregroundColor: BcColors.black,
         elevation: 0,
         title: const Text('Agendar corrida', style: TextStyle(fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PassengerSchedulesScreen()),
+            ),
+            child: const Text('Reservas'),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

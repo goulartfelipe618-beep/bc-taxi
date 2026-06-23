@@ -293,3 +293,7 @@ export function startScheduleDispatcher() {
     void dispatchDueScheduledRides();
   }, intervalMs);
 }
+
+export function __testResetScheduleMemory() {
+  memorySchedules.length = 0;
+}

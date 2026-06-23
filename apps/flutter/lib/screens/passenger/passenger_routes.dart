@@ -22,6 +22,7 @@ import 'payment/payment_methods_screen.dart';
 import 'plan_trip_screen.dart';
 import '../../models/payment_intent.dart';
 import 'ride/ride_requested_screen.dart';
+import 'schedule/passenger_schedules_screen.dart';
 import 'schedule/schedule_ride_screen.dart';
 
 class PaymentMethodSelection {
@@ -135,6 +136,9 @@ class PassengerRoutes {
   }
   static void openSchedule(BuildContext context, {PlaceItem? destination}) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => ScheduleRideScreen(destination: destination)));
+
+  static void openSchedulesList(BuildContext context) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PassengerSchedulesScreen()));
 
   static void openRideActive(
     BuildContext context, {

@@ -14,6 +14,7 @@ import { fraudRouter } from './routes/fraud.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { placesRouter, routesRouter } from './routes/mapbox.js';
 import { passengerAccountRouter } from './routes/passengerAccount.js';
+import { passengerReputationRouter } from './routes/passengerReputation.js';
 import { passengerSchedulingRouter } from './routes/passengerScheduling.js';
 import { paymentsRouter, pspWebhookHandler } from './routes/payments.js';
 import { pricingRouter } from './routes/pricing.js';
@@ -98,6 +99,7 @@ async function main() {
   app.use('/v1/routes', routesRouter);
   app.use('/v1/passenger/account', passengerAccountRouter);
   app.use('/v1/passenger/schedules', passengerSchedulingRouter);
+  app.use('/v1/passenger/reputation', passengerReputationRouter);
   app.use('/v1/passenger/activity', passengerActivityRouter);
   app.use('/v1/payments', paymentsRouter);
   app.use('/v1/rides', ridesRouter);

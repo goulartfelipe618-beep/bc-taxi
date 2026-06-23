@@ -6,6 +6,7 @@ import '../../services/client_bootstrap_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/passenger_theme.dart';
 import '../login_screen.dart';
+import 'passenger_reputation_screen.dart';
 import 'passenger_routes.dart';
 import 'widgets/passenger_sheets.dart';
 
@@ -109,6 +110,15 @@ class _PassengerAccountTabState extends State<PassengerAccountTab> {
           ),
           const SizedBox(height: 20),
           _MenuTile(icon: Icons.manage_accounts_outlined, title: 'Gerir conta BC Taxi', onTap: () => PassengerRoutes.openAccountHub(context)),
+          _MenuTile(
+            icon: Icons.star_outline,
+            title: 'Reputação',
+            subtitle: ratingLabel,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PassengerReputationScreen()),
+            ),
+          ),
           _MenuTile(icon: Icons.settings_outlined, title: 'Definições', onTap: () => PassengerRoutes.openSettings(context)),
           _MenuTile(icon: Icons.payment_outlined, title: 'Pagamentos', subtitle: 'PIX · Pessoal', onTap: () => PassengerRoutes.openPaymentMethods(context)),
           _MenuTile(icon: Icons.shield_outlined, title: 'Segurança', onTap: () => PassengerRoutes.openSecurity(context)),

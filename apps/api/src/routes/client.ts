@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { optionalAuthMiddleware } from '../middleware/optionalAuth.js';
+import { optionalAuthMiddleware } from '../middleware/auth.js';
 import { getClientBootstrap } from '../catalog/clientBootstrapProductionService.js';
 import { listCategoryRequirementProfiles } from '../catalog/categoryDocumentProductionService.js';
 

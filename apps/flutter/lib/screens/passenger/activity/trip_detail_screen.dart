@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../constants/passenger_data.dart';
-import '../../services/api_client.dart';
-import '../../services/auth_service.dart';
-import '../../services/ride_activity_service.dart';
-import '../../services/trip_resolver.dart';
-import '../../theme/passenger_theme.dart';
-import '../../widgets/passenger/bc_subpage_scaffold.dart';
-import '../ride_activity_detail_screen.dart';
-import 'activity/ride_receipt_screen.dart';
-import 'choose_ride_screen.dart';
-import 'passenger_routes.dart';
+import '../../../constants/passenger_data.dart';
+import '../../../services/api_client.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/ride_activity_service.dart';
+import '../../../services/trip_resolver.dart';
+import '../../../theme/passenger_theme.dart';
+import '../../../widgets/passenger/bc_subpage_scaffold.dart';
+import '../../ride_activity_detail_screen.dart';
+import 'ride_receipt_screen.dart';
+import '../choose_ride_screen.dart';
+import '../passenger_routes.dart';
 
 class TripDetailScreen extends StatefulWidget {
   const TripDetailScreen({super.key, required this.trip});

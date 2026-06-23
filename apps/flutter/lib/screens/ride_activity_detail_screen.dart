@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/api_client.dart';
-import '../../services/auth_service.dart';
-import '../../services/ride_activity_service.dart';
-import '../passenger/activity/ride_receipt_screen.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
+import '../services/ride_activity_service.dart';
+import 'passenger/activity/ride_receipt_screen.dart';
 
 class RideActivityDetailScreen extends StatefulWidget {
   const RideActivityDetailScreen({

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/api_client.dart';
-import '../../services/auth_service.dart';
-import '../../services/passenger_schedule_production_service.dart';
-import '../../theme/passenger_theme.dart';
+import '../../../services/api_client.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/passenger_schedule_production_service.dart';
+import '../../../theme/passenger_theme.dart';
 import '../passenger_routes.dart';
-import 'schedule/schedule_ride_screen.dart';
-import 'widgets/passenger_sheets.dart';
+import 'schedule_ride_screen.dart';
+import '../widgets/passenger_sheets.dart';
 
 class PassengerSchedulesScreen extends StatefulWidget {
   const PassengerSchedulesScreen({super.key});

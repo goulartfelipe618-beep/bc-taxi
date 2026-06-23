@@ -26,6 +26,7 @@ import { promotionsRouter } from './routes/promotions.js';
 import { schedulingRouter } from './routes/scheduling.js';
 import { corporateRouter } from './routes/corporate.js';
 import { deliveriesRouter } from './routes/deliveries.js';
+import { driverAccountRouter } from './routes/driverAccount.js';
 import { driverFleetRouter } from './routes/driverFleet.js';
 import { driverPayoutRouter } from './routes/driverPayout.js';
 import { driverReputationRouter } from './routes/driverReputation.js';

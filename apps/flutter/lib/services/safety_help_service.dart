@@ -88,7 +88,7 @@ class SafetyHelpService {
   }
 
   Future<void> recordInquiry({required String topicCode, String? searchQuery}) async {
-    final res = await _client.post('/v1/passenger/safety-help/help/inquiries', {
+    final res = await _client.post('/v1/passenger/safety-help/help/inquiries', body: {
       'topicCode': topicCode,
       if (searchQuery != null) 'searchQuery': searchQuery,
     });
@@ -101,7 +101,7 @@ class SafetyHelpService {
     required String phone,
     String? relationshipLabel,
   }) async {
-    final res = await _client.post('/v1/passenger/safety-help/contacts', {
+    final res = await _client.post('/v1/passenger/safety-help/contacts', body: {
       'name': name,
       'phone': phone,
       if (relationshipLabel != null) 'relationshipLabel': relationshipLabel,
@@ -112,7 +112,7 @@ class SafetyHelpService {
   }
 
   Future<String> shareRide({String? rideId}) async {
-    final res = await _client.post('/v1/passenger/safety-help/share-ride', {
+    final res = await _client.post('/v1/passenger/safety-help/share-ride', body: {
       if (rideId != null) 'rideId': rideId,
     });
     final data = _client.decodeJson(res);

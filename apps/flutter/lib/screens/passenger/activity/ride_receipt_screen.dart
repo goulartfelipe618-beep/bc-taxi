@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../services/api_client.dart';
-import '../../services/receipt_service.dart';
-import '../../theme/passenger_theme.dart';
+import '../../../services/api_client.dart';
+import '../../../services/receipt_service.dart';
+import '../../../theme/passenger_theme.dart';
 
 class RideReceiptScreen extends StatefulWidget {
   const RideReceiptScreen({

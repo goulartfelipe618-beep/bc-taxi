@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../ride_activity_detail_screen.dart';
+import 'ride_activity_detail_screen.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/ride_activity_service.dart';

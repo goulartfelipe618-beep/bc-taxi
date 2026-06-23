@@ -15,6 +15,7 @@ import '../widgets/passenger/ride_review_sheet.dart';
 import 'driver_account_tab.dart';
 import 'driver_compliance_screen.dart';
 import 'driver_earnings_tab.dart';
+import 'driver_rides_tab.dart';
 import 'login_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -367,7 +368,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         index: _tab,
         children: [
           _buildHomeTab(firstName),
-          Center(child: Text(_activeRide != null ? 'Corrida ${_activeRide!.statusLabel}' : 'Sem corridas')),
+          const DriverRidesTab(),
           const DriverEarningsTab(),
           const DriverAccountTab(),
         ],

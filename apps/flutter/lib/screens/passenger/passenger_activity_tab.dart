@@ -1,39 +1,120 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../constants/passenger_data.dart';
+import '../../services/api_client.dart';
+import '../../services/auth_service.dart';
+import '../../services/ride_activity_service.dart' as api;
 import '../../theme/passenger_theme.dart';
 import 'passenger_routes.dart';
 
-class PassengerActivityTab extends StatelessWidget {
+class PassengerActivityTab extends StatefulWidget {
   const PassengerActivityTab({super.key});
 
   @override
+  State<PassengerActivityTab> createState() => _PassengerActivityTabState();
+}
+
+class _PassengerActivityTabState extends State<PassengerActivityTab> {
+  List<TripActivityItem> _trips = [];
+  bool _loading = true;
+  bool _useFallback = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final token = context.read<AuthService>().token;
+    if (token == null) {
+      setState(() {
+        _trips = pastTrips;
+        _useFallback = true;
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final service = api.RideActivityService(ApiClient(token), role: 'passenger');
+      final result = await service.fetchRides();
+      if (!mounted) return;
+      setState(() {
+        _trips = result.items.asMap().entries.map((entry) {
+          final item = entry.value;
+          return TripActivityItem(
+            destination: item.displayTitle,
+            address: item.dropoffAddress ?? item.displayTitle,
+            dateLabel: item.dateLabel,
+            priceLabel: item.priceLabel ?? '—',
+            driverName: item.driverName,
+            metaLabel: item.driverName,
+            featured: entry.key == 0,
+            failed: item.isCancelled,
+          );
+        }).toList();
+        _useFallback = false;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _trips = pastTrips;
+        _useFallback = true;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const SafeArea(child: Center(child: CircularProgressIndicator()));
+    }
+
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Atividade', style: PassengerTheme.titleLarge),
-              IconButton(
-                onPressed: () => PassengerRoutes.openActivityFilter(context),
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: BcColors.grayLight, borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.tune, size: 20),
+      child: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Atividade', style: PassengerTheme.titleLarge),
+                IconButton(
+                  onPressed: () => PassengerRoutes.openActivityFilter(context),
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: BcColors.grayLight, borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.tune, size: 20),
+                  ),
                 ),
+              ],
+            ),
+            if (_useFallback)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('Exibindo dados de demonstração', style: PassengerTheme.caption),
               ),
+            const SizedBox(height: 8),
+            Text('Anteriores', style: PassengerTheme.titleMedium.copyWith(fontSize: 16)),
+            const SizedBox(height: 12),
+            if (_trips.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: Text('Nenhuma viagem anterior')),
+              )
+            else ...[
+              if (_trips.first.featured) _FeaturedTripCard(trip: _trips.first),
+              const SizedBox(height: 4),
+              ..._trips.skip(_trips.first.featured ? 1 : 0).map((t) => _TripListRow(trip: t)),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text('Anteriores', style: PassengerTheme.titleMedium.copyWith(fontSize: 16)),
-          const SizedBox(height: 12),
-          if (pastTrips.isNotEmpty) _FeaturedTripCard(trip: pastTrips.first),
-          const SizedBox(height: 4),
-          ...pastTrips.skip(1).map((t) => _TripListRow(trip: t)),
-        ],
+          ],
+        ),
       ),
     );
   }

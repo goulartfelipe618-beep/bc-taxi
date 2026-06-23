@@ -308,6 +308,12 @@ export const memoryMatchStore = {
       }
     }
   },
+
+  async listRidesForUser(userId: string, role: 'passenger' | 'driver') {
+    return [...rides.values()].filter((ride) =>
+      role === 'passenger' ? ride.passengerId === userId : ride.driverId === userId,
+    );
+  },
 };
 
 // Postgres repository

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../ride_activity_detail_screen.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/ride_activity_service.dart';
@@ -109,6 +110,12 @@ class _DriverRidesTabState extends State<DriverRidesTab> {
       child: ListTile(
         title: Text(item.displayTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(subtitle),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RideActivityDetailScreen(rideId: item.rideId, role: 'driver'),
+          ),
+        ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,

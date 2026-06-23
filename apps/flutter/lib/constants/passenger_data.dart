@@ -45,6 +45,7 @@ class PickupSpot {
 
 class TripActivityItem {
   const TripActivityItem({
+    this.rideId,
     required this.destination,
     required this.address,
     required this.dateLabel,
@@ -58,6 +59,7 @@ class TripActivityItem {
     this.featured = false,
   });
 
+  final String? rideId;
   final String destination;
   final String address;
   final String dateLabel;

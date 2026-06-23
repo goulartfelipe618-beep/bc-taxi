@@ -46,10 +46,13 @@ class _PassengerActivityTabState extends State<PassengerActivityTab> {
         _trips = result.items.asMap().entries.map((entry) {
           final item = entry.value;
           return TripActivityItem(
+            rideId: item.rideId,
             destination: item.displayTitle,
             address: item.dropoffAddress ?? item.displayTitle,
             dateLabel: item.dateLabel,
             priceLabel: item.priceLabel ?? '—',
+            origin: item.pickupAddress ?? defaultOrigin,
+            category: item.categoryLabel,
             driverName: item.driverName,
             metaLabel: item.driverName,
             featured: entry.key == 0,

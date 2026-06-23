@@ -1,5 +1,9 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
+import {
+  getRideActivityDetail,
+  getRideActivityRebookDraft,
+} from '../activity/rideActivityDetailProductionService.js';
 import { listRideActivity, pinRideActivity } from '../activity/rideActivityProductionService.js';
 
 function createRideActivityRouter(role: 'passenger' | 'driver') {
@@ -22,6 +26,28 @@ function createRideActivityRouter(role: 'passenger' | 'driver') {
     const result = await listRideActivity(req.user!.id, role, { status, limit, offset });
     res.json(result);
   });
+
+  router.get('/rides/:id', async (req, res) => {
+    try {
+      const detail = await getRideActivityDetail(req.user!.id, role, req.params.id);
+      res.json(detail);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao carregar detalhe';
+      res.status(msg.includes('não encontrada') ? 404 : 400).json({ error: msg });
+    }
+  });
+
+  if (role === 'passenger') {
+    router.get('/rides/:id/rebook', async (req, res) => {
+      try {
+        const draft = await getRideActivityRebookDraft(req.user!.id, req.params.id);
+        res.json({ rebook: draft });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Falha ao preparar re-reserva';
+        res.status(400).json({ error: msg });
+      }
+    });
+  }
 
   router.post('/rides/:id/pin', async (req, res) => {
     const result = await pinRideActivity(req.user!.id, req.params.id);

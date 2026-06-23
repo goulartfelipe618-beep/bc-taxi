@@ -111,4 +111,99 @@ class RideActivityService {
     final data = _client.decodeJson(res);
     _client.throwIfError(res, data);
   }
+
+  Future<RideActivityDetail> fetchRideDetail(String rideId) async {
+    final res = await _client.get('$_basePath/rides/$rideId');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return RideActivityDetail.fromJson(data);
+  }
+
+  Future<RideRebookDraft> fetchRebookDraft(String rideId) async {
+    final res = await _client.get('$_basePath/rides/$rideId/rebook');
+    final data = _client.decodeJson(res);
+    _client.throwIfError(res, data);
+    return RideRebookDraft.fromJson(data['rebook'] as Map<String, dynamic>);
+  }
+}
+
+class RideActivityDetail {
+  RideActivityDetail({
+    required this.rideId,
+    required this.status,
+    required this.categoryLabel,
+    required this.pickupAddress,
+    required this.dropoffAddress,
+    this.fareLabel,
+    this.paymentMethodLabel,
+    this.driverName,
+    this.receiptId,
+    this.rebookEnabled = false,
+    this.reviewPending = false,
+    this.driverEarningsLabel,
+    this.cancelReason,
+  });
+
+  final String rideId;
+  final String status;
+  final String categoryLabel;
+  final String pickupAddress;
+  final String dropoffAddress;
+  final String? fareLabel;
+  final String? paymentMethodLabel;
+  final String? driverName;
+  final String? receiptId;
+  final bool rebookEnabled;
+  final bool reviewPending;
+  final String? driverEarningsLabel;
+  final String? cancelReason;
+
+  bool get isCancelled => status == 'CANCELLED';
+
+  factory RideActivityDetail.fromJson(Map<String, dynamic> json) {
+    final pickup = json['pickup'] as Map<String, dynamic>? ?? {};
+    final dropoff = json['dropoff'] as Map<String, dynamic>? ?? {};
+    final fare = json['fare'] as Map<String, dynamic>?;
+    final receipt = json['receipt'] as Map<String, dynamic>?;
+    final driver = json['driver'] as Map<String, dynamic>?;
+    final earnings = json['driverEarnings'] as Map<String, dynamic>?;
+    return RideActivityDetail(
+      rideId: json['rideId'] as String,
+      status: json['status'] as String,
+      categoryLabel: json['categoryLabel'] as String? ?? '',
+      pickupAddress: pickup['address'] as String? ?? 'Origem',
+      dropoffAddress: dropoff['address'] as String? ?? 'Destino',
+      fareLabel: fare?['totalLabel'] as String?,
+      paymentMethodLabel: json['paymentMethodLabel'] as String?,
+      driverName: driver?['name'] as String?,
+      receiptId: receipt?['id'] as String?,
+      rebookEnabled: json['rebookEnabled'] as bool? ?? false,
+      reviewPending: json['reviewPending'] as bool? ?? false,
+      driverEarningsLabel: earnings?['grossLabel'] as String?,
+      cancelReason: json['cancelReason'] as String?,
+    );
+  }
+}
+
+class RideRebookDraft {
+  RideRebookDraft({
+    required this.pickupAddress,
+    required this.dropoffAddress,
+    required this.dropoffName,
+    required this.categoryCode,
+  });
+
+  final String pickupAddress;
+  final String dropoffAddress;
+  final String dropoffName;
+  final String categoryCode;
+
+  factory RideRebookDraft.fromJson(Map<String, dynamic> json) {
+    return RideRebookDraft(
+      pickupAddress: json['pickupAddress'] as String,
+      dropoffAddress: json['dropoffAddress'] as String,
+      dropoffName: json['dropoffName'] as String,
+      categoryCode: json['categoryCode'] as String,
+    );
+  }
 }
